@@ -1,0 +1,1043 @@
+---
+title: "CI mispronunciation sensitivity: results"
+author: "Meg Cychosz"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: 
+  bookdown::pdf_document2:
+    keep_tex: true
+    toc: False
+indent: true
+---
+```{r setup, include=FALSE}
+library("knitr")
+library('tidyverse')
+library('itsadug')
+library('mgcv')
+library('ggplot2')
+library('tidymv')
+library('cowplot')
+library('kableExtra')
+library('gridExtra')
+
+
+knitr::opts_chunk$set(message=FALSE, 
+                      warning=FALSE,
+                      echo=FALSE)
+```
+
+```{r, read in data}
+all_kids <- read.csv('./ha_matched_kids.csv') %>% # contains the N=38 kids who are hearing age-matched
+  filter(Condition!='nonsense') %>% # only going to look at difference between MP and real 
+  filter(TargetWord!='tag' & TargetWord!='dog') %>% # 7 children heard dog/tog instead of rice/wice; all TH
+  mutate(elog=as.numeric(elog)) %>%
+  mutate(Time=as.numeric(Time),
+         Condition.ord=as.ordered(Condition),
+         Group.ord=as.ordered(Group),
+         ChildStudyID=as.factor(ChildStudyID),
+         WordGroup=as.factor(WordGroup)) %>% 
+  arrange(Time) 
+
+all_kids$start.event <- all_kids$Time == 300 # mark the beginning of each speaker's trajectory; 
+
+# make sure the data to configure autocorrelation are properly ordered and classified
+all_kids2 <- all_kids %>%
+  distinct(ChildStudyID, .keep_all = T) %>%
+  group_by(ResearchID) %>% 
+  mutate(num_visit = str_sub(Study, -1)) %>% # classify which visit it was (first, second, or third)
+  select(num_visit, ChildStudyID, ResearchID) %>%
+  merge(., all_kids, by=c("ResearchID", "ChildStudyID")) %>%
+  arrange(ChildStudyID, Group, TargetWord, Time) %>%
+  mutate(WordGroup=as.factor(WordGroup),
+  TargetWord=as.factor(TargetWord),
+  ChildStudyID=as.factor(ChildStudyID),
+  num_visit=as.factor(num_visit),
+  Group=as.factor(Group)) 
+
+#write.csv(all_kids2, '/Users/megcychosz/Google Drive/CI_mispron/CI_mispron/project_results/all_kids2.csv') # write out dataframe for replication script
+```
+
+```{r, summary stats for methods}
+# how many kids in each group
+group_num <- all_kids2 %>%
+  distinct(ChildStudyID, .keep_all = T) %>% 
+  count(Group)
+  
+# how many children contributed data at two timepoints?
+two_tp <- all_kids2 %>%
+  group_by(ResearchID) %>% 
+  distinct(ChildStudyID, .keep_all = T) %>%
+  add_count() %>%
+  distinct(ResearchID, .keep_all = T) %>%
+  filter(n=='2') 
+
+# how many trials from each group?
+trials <- all_kids2 %>%
+  filter(start.event==TRUE) %>%
+  count(Group)
+
+# AAE & Late Talker: no kids were late talkers or received in AAE
+demo_data <- read.csv("../BU2017_results/data/scores.csv") %>%
+  dplyr::select(ResearchID,AAE,LateTalker) %>%
+  merge(., all_kids2, by="ResearchID") %>%
+  distinct(ResearchID, .keep_all = T)
+
+# info for tables  
+stat_sum_ha <- all_kids2 %>% 
+  distinct(ChildStudyID, .keep_all = T) %>% 
+  group_by(Group) %>% 
+  summarize(mean_hearing_age = mean(hearing_age),
+            sd_hearing_age = sd(hearing_age),
+            min_hage = min(hearing_age),
+            max_hage = max(hearing_age),
+            mean_age = mean(EVT_Age),
+            sd_age = sd(EVT_Age),
+            min_age = min(EVT_Age),
+            max_age = max(EVT_Age),
+            mean_mated = mean(Maternal_Education_Level),
+            sd_mated = sd(Maternal_Education_Level),
+            
+            mean_evt_gsv = mean(EVT_GSV),
+            sd_evt_gsv = sd(EVT_GSV),
+            min_evt_gsv = min(EVT_GSV),
+            max_evt_gsv = max(EVT_GSV),
+            
+            mean_evt_stan = mean(EVT_Standard),
+            sd_evt_stan = sd(EVT_Standard),
+            min_evt_stan = min(EVT_Standard),
+            max_evt_stan = max(EVT_Standard)) %>%
+  
+  mutate_at(vars(-Group), funs(round(., 2))) %>%
+  distinct(Group, .keep_all = T) %>%
+  mutate(`Chronological Age: months` = paste(mean_age,"(",sd_age,")",min_age,"-",max_age),
+         `Hearing Age: months` = paste(mean_hearing_age,"(",sd_hearing_age,")",min_hage,"-",max_hage),
+         `Maternal Education Level` = paste(mean_mated,"(",sd_mated,")"),
+         `EVT-2 GSV Scores` = paste(mean_evt_gsv,"(",sd_evt_gsv,")",min_evt_gsv,"-",max_evt_gsv),
+         `EVT-2 Stan. Scores` = paste(mean_evt_stan,"(",sd_evt_stan,")",min_evt_stan,"-",max_evt_stan)) %>%
+  select(tail(names(.),5))
+
+stat_gender <- all_kids2 %>%
+  distinct(ChildStudyID, .keep_all = T) %>% 
+  group_by(Group, Female) %>%
+  count() %>%
+  spread(Female,n) %>%
+  mutate(`Girls, Boys`=paste(`1`,',', `0`)) %>%
+  select(Group, `Girls, Boys`) 
+```
+
+```{r, demo-tab}
+stat_gender %>%
+  cbind(., stat_sum_ha) %>%
+  rename(`Hearing Status`=Group) %>%
+  knitr::kable(., booktabs=T, 
+               caption= "Participant demographic information (N=19 matches), Mean (SD), range.",
+             row.names = FALSE) %>% 
+  kable_styling() %>%
+  kableExtra::kable_styling(latex_options = "hold_position")
+```
+
+```{r, contending with autocorrelation, fig.show='hide',cache=T}
+#I first have to factor out autocorrelation between looks. 
+# fit a model with the data properly ordered
+m1_all <- bam(elog ~ Condition.ord +
+                  s(Time) + 
+                  s(Time, by=Condition.ord) +
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs="fs", m=1) +
+                  s(Time, ChildStudyID, by=Condition.ord, bs="fs", m=1),
+                  data=all_kids2, method="fREML") 
+
+m_acf_all <- acf_resid(m1_all) # plot the autocorrelation and take a look at correlation between timepoints - yikes!
+
+r1_all <- start_value_rho(m1_all) # first we calculate rho from the original model 
+
+m_AR1_all <- bam(elog ~ Condition.ord +
+                  s(Time) + 
+                  s(Time, by=Condition.ord) +
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs="fs", m=1) +
+                  s(Time, ChildStudyID, by=Condition.ord, bs="fs", m=1),
+                         data=all_kids2, method="fREML",
+                         rho=r1_all, AR.start=start.event)
+
+# we can plot the improvement here:
+m_acf_rmv_all <- acf_resid(m_AR1_all) # took care of the problem!
+```
+
+```{r, compare word to word-condition model, eval=FALSE}
+#Now, I have to see if I am justified in adding a group-level effect to the condition-only model. 
+
+condition_base <- all_kids2 %>%
+  bam(elog ~      Condition.ord + 
+                  s(Time) + 
+                  s(Time, by=Condition.ord) +
+                  s(Time, ChildStudyID, bs='fs', m=1) +
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs='fs', m=1), # we purposely don't include a smooth of Time by Child by Condition because we're comparing 
+                  data=.,           # this nested model to one with GroupCondition below
+                  rho=r1_all,
+                  method="ML",
+                  family="scat",
+                  AR.start=start.event)
+
+all_kids2$GroupCondition <- interaction(all_kids2$Group,all_kids2$Condition)
+
+interact_model <- all_kids2 %>%
+  bam(elog ~      GroupCondition + 
+                  s(Time) +
+                  s(Time, by=GroupCondition) +
+                  s(Time, ChildStudyID, bs='fs', m=1) +
+                  s(Time, TargetWord, bs='fs', m=1) + 
+                  s(Time, num_visit, bs='fs', m=1),
+                  data=.,
+                  rho=r1_all,
+                  method="ML", 
+                  family="scat",
+                  AR.start=start.event)
+interact_model_summary <- summary(interact_model)
+
+compareML(condition_base,interact_model,print.output = T) # I am justified in continuing the modeling 
+AIC(condition_base,interact_model) # interact model has much lower AIC
+
+interact_model_freml <- all_kids2 %>%
+  bam(elog ~      GroupCondition + 
+                  s(Time) +
+                  s(Time, by=GroupCondition) +
+                  s(Time, ChildStudyID, bs='fs', m=1) +
+                  s(Time, TargetWord, bs='fs', m=1) + 
+                  s(Time, num_visit, bs='fs', m=1),
+                  data=.,
+                  rho=r1_all,
+                  method="fREML", 
+                  family="scat",
+                  AR.start=start.event)
+
+saveRDS(condition_base, "../hearingage_matched_models/condition-base-model.Rdata")
+saveRDS(interact_model, "../hearingage_matched_models/interact-model.Rdata")
+saveRDS(interact_model_freml, "../hearingage_matched_models/interact-model-freml.Rdata")
+saveRDS(interact_model_summary, "../hearingage_matched_models/interact-model-summary.Rdata")
+```
+
+```{r, create ordered factors}
+#Next, I'll evaluate if the difference between real and mispronounced words is significant for the two hearing groups **separately**. First, I have to create two ordered factors for a 2x2 relationship of word and condition. 
+
+# we have to create *two* reference levels: one for children with CIs and one for children with TH
+# Unlike a binary difference smooth, an ordered model doesn't lump intercepts and smooths together
+# and I'd like to be able to tease them apart in these models
+all_kids2$THReal0 <- as.ordered(all_kids2$Group=='NormalHearing' & all_kids2$Condition=='real')
+contrasts(all_kids2$THReal0) <- "contr.treatment" # contrast coding
+
+all_kids2$CIReal0 <- as.ordered(all_kids2$Group=='CochlearImplant' & all_kids2$Condition=='real')
+contrasts(all_kids2$CIReal0) <- "contr.treatment"
+```
+
+```{r, fit the 2x2 model, eval=FALSE}
+groupcond_model <- all_kids2 %>%
+  bam(elog ~      Group + # ordered variable
+                  THReal0 + 
+                  CIReal0 + 
+                  s(Time) +
+                  s(Time, by=Group) +
+                  s(Time, by=THReal0) + 
+                  s(Time, by=CIReal0) +
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs='fs', m=1), # we purposely don't include a smooth of Time by Child by Group because that's not a hierarchical variable
+                  data=.,
+                  rho=r1_all,
+                  method="fREML",
+                  family="scat",
+                  AR.start=start.event)
+
+groupcond_model_summary <- summary(groupcond_model)
+saveRDS(groupcond_model, "../hearingage_matched_models/group-cond-model.Rdata")
+saveRDS(groupcond_model_summary, "../hearingage_matched_models/group-cond-model-summary.Rdata")
+```
+
+```{r, model criticism for 2x2 model, eval=FALSE}
+gam.check(groupcond_model) # residuals look fine, k' and k-index values looks fine
+```
+
+```{r, prepare binary difference}
+#Now that I know that there is a significant (non-linear) difference by condition for both groups, I want to know: is the effect of condition more pronounced in one group than the other? The ordered model above doesn't allow me to evaluate that. I have to fit a model with a binary difference smooth to evaluate that question. 
+
+# first we create a *single* binary difference smooth, just for word condition,
+# group is not included here 
+all_kids2$IsReal <- (all_kids2$Condition=='real')*1
+
+# then we additionally create a binary difference smooth of word*condition
+all_kids2$IsTHReal <- (all_kids2$Group=='NormalHearing' & all_kids2$Condition=='real')*1
+all_kids2$IsCIReal <- (all_kids2$Group=='CochlearImplant' & all_kids2$Condition=='real')*1
+```
+
+```{r, fit binary difference model, eval=FALSE}
+diff_model <- all_kids2 %>%
+  bam(elog ~      Group + 
+                  s(Time) +
+                  s(Time, by=Group) +
+                  s(Time, by=IsReal) + # this represents real-MP difference for CI listeners
+                  s(Time, by=IsTHReal) + # this represents real-MP difference in TH vs. CI groups
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs='fs', m=1), # same here: Group isn't a hierarchical structure
+                  data=.,
+                  rho=r1_all,
+                  method="fREML",
+                  family="scat",
+                  AR.start=start.event)
+
+diff_model_summary <- summary(diff_model)
+saveRDS(diff_model, "../hearingage_matched_models/diff-model.Rdata")
+saveRDS(diff_model_summary, "../hearingage_matched_models/diff-model-summary.Rdata")
+```
+
+```{r, criticism of difference model, eval=FALSE}
+gam.check(diff_model) # residuals, k', and k-index values all look good
+```
+
+# Results
+## Analysis plan
+
+Here we evaluate the mispronunciation sensitivity of children with CIs in comparison to their hearing age- and vocabulary size-matched peers. The outcome variable is the proportion of looks to the familiar photo versus the unfamiliar photo, over time (300-1,800 ms after target word onset), which we modeled using Generalized Additive Mixed Models (GAMMs). GAMMs have become an important tool to model time series data, such as eyetracking trajectories, because they can incorporate nonlinear relationships between variables such as time, response, and relevant covariates (i.e., effects of group and/or condition) (rijChildrenEyeGaze2016;zahnerAlignmentF0Peak). GAMMs are composed of both (fixed) *parametric* terms that model static relationships between two variables, as is common in generalized linear modeling, as well as *smooth* terms which model nonlinear effects. Parametric terms can be interpreted from model summaries, as in traditional regression, but smooth terms must be interpreted visually. For an introduction to GAMMs, readers are encouraged to consult tutorials in Wieling (2017) and Sóskuthy (2021), as well as the more comprehensive Wood (2017). 
+
+GAMMs also allow for autocorrelation between observations to be factored into the modeling. Incorporating autocorrelation is of particular importance to eyetracking data where we anticipate large amounts of within-trial correlation between measurements over time: the area where the child is looking at 500ms is highly correlated with where they are looking at 550ms. As such, GAMMs are a significant improvement upon other polynomial regression models common in time series analysis, such as Growth Curve Models (GCMs). GCMs cannot factor in this inherent correlational structure within the data and, as a result, recent work has shown that they result in inflated Type I error rates (Huang & Snedeker, 2020). 
+
+The current data were analyzed in the RStudio computing environment (version 1.4.1717; RStudio). All computing and statistical analyses are included in the GitHub repository affiliated with this project [INCLUDE]. Visualizations were made using the ggplot2 and cowplot packages. Modeling was conducted and presented using the mgcv, itsadug, and tidymv packages. For all modeling, the proportion of children's looks to the familiar image versus the unfamiliar image was calculated for each frame (every 50 ms) and transformed to empirical logit (elog) (Barr, 2008). Random effects ("factor smooths" in GAMMs) included by-participant, by-observation (first, second,  or third visit to the lab), and by-item trajectories to model variability stemming from individual children or lexical items, as well as to take into account the repeated observations from some children at two different ages. Model criticism, to ensure assumptions were met and avoid overfitting, was conducted using the gam.check() function; when necessary, the basis function number (*k* or knots) was increased. 
+
+As is common in eye-tracking data, the response data were distributed with heavy tails. Consequently, all models were fit using a scaled t model using the "scat" link function which substantially improved data distribution (woodSmoothingParameterModel2016). Finally, for each model, autocorrelation between model residuals was calculated; all models showed high amounts of autocorrelation. These dependencies were factored into the modeling by fitting an autoregressive error model (AR(1)) that modeled the degree of autocorrelation (*rho*) between timepoints in each trial. Subsequent model inspection demonstrated that specifying this autocorrelation value in the model sufficiently factored out autocorrelation between residuals (Wieling, 2017).  
+
+## Evaluating the effect of phonetic detail on mispronunciation sensitivity
+
+To evaluate how access to fine, phonetic detail may affect mispronunciation sensitivity, a series of GAMMs were fit comparing children with CIs and their hearing age- and vocabulary size-matched peers. **Condition** (Correct Pronunciation vs. Mispronunciation) was contrast-coded to facilitate model interpretation and the 2x2 relationship of **Group** (Children with CIs vs. NH) and **Condition** was modeled using ordered factors. A model with parametric and smooth terms for **Group** and **Condition** improved upon a **Condition**-only model, suggesting that children with CIs and TH responded differently to correct- versus mis-pronunciations. 
+
+To statistically evaluate the source of the **Group** effect (i.e., stemming from overall vs. time-varying response to the stimuli), another model was fit that included parametric terms for **Group**, and the ordered factors of *Correct Pronunciation* for children with CIs and *Correct Pronunciation* for children with TH (Wieling, 2017). These parametric effects modeled the constant effect (the intercept) of the covariates upon the response variable. Smooth model terms included non-linear effects of **Time** and **Time** by **Group**. The latter allowed us to model the non-linear difference between the two different groups' responses to mispronunciations. Finally, the model included difference smooths which allowed us to separately model how each hearing group responded to correct- versus mis-pronunciations, over time. See Table \@ref(tab:2-by-2-model-summary) for model summary.
+
+```{r, 2-by-2-model-summary}
+groupcond_model <- readRDS("../hearingage_matched_models/group-cond-model.Rdata")
+groupcond_model_summary <- readRDS("../hearingage_matched_models/group-cond-model-summary.Rdata")
+
+m <- gamtabs(groupcond_model,
+        caption = "Model summary predicting the difference between proportion of looks to the familiar image by word condition and hearing status.",
+        label="2-by-2-model-summary",
+        pnames = c("Intercept", "Typical Hearing", "Typical Hearing: Correct", "Cochlear Implant: Correct"), # the parametric terms
+        snames = c("s(Time)","s(Time,Cochlear Implant)","s(Time,Typical Hearing)",
+                   "s(Time,Typical Hearing; Correct)","s(Time,Cochlear Implant; Correct)",
+                   "s(Time,Child)","s(Time,Item)","s(Time,Observation)"))
+
+
+```
+
+First we ask: are both children with CIs and their TH matches sensitive to mispronunciations? Parametric effects in the model summary show that there are, overall, significantly more looks to the familiar photo for *Correct Pronunciation* trials than *Mispronunciation* trials, for both children with CIs and TH (CI Est.=`r round(groupcond_model_summary$p.coeff[4],2)`, p<.001; TH Est.=`r round(groupcond_model_summary$p.coeff[3],2)`, p<.001). Interpretation of the non-linear smooths shows that there are significant, non-linear differences in looks to the familiar image between correct- and mis-pronunciations for children with CIs (smooth of **Time** by the ordered **Cochlear Implant; Correct**) and children with TH (smooth of **Time** by the ordered **Typical Hearing; Correct**) (Figure \@ref(fig:2x2-plot)). Thus, both children with CIs and TH are sensitive to mispronunciations.
+
+```{r, 2x2-plot, fig.cap="GAMM predictions for proportion of looks to familiar image, by word condition and hearing status. Shaded ribbons represent 95% confidence intervals."}
+interact_model_freml <- readRDS("../hearingage_matched_models/interact-model-freml.Rdata")
+
+get_gam_predictions(interact_model_freml, # get the dataframe with fit and s.e. of fit
+                      Time,
+                      split = list(GroupCondition = c("Group", "Condition")),
+                      exclude_random = TRUE) %>% 
+                      mutate(Group=recode(Group, "CochlearImplant"="Cochlear Implant", "NormalHearing" = "Typical Hearing"),
+                             Condition = recode(Condition, "MP"="Mispronunciation", "real"="Correct pronunciation")) %>%
+                       ggplot(aes(Time,elog)) +
+                       geom_line(aes(color=Condition, linetype=Group),size=2) +
+                      scale_linetype_manual(values=c(1,3)) +
+                       geom_ribbon(aes(ymin=CI_lower, ymax=CI_upper, fill=Condition, group = .idx), alpha=0.3) +
+                        scale_color_manual(values=c('darkgoldenrod2','turquoise4')) +
+                        scale_fill_manual(values=c('darkgoldenrod2','turquoise4')) +
+                        xlab("Time since word onset (ms)")  +
+                        ylab("Estimated fixation to target image (Elog)") +
+                        scale_x_continuous(breaks = c(300,600,900,1200,1500,1800))+
+                        theme(axis.text = element_text(face="bold", size=12),
+                         axis.title = element_text(face="bold", size=15),
+                         legend.title = element_text(face="bold",size=15)) 
+```
+
+Nevertheless, the above modeling cannot tell us if these children with CIs are *less* sensitive to mispronunciations than their TH peers; the modeling demonstrates only that both groups show sensitivity. To evaluate differences in mispronunciation sensitivity by group, another GAMM was fit, with a binary difference smooth, which allowed us to evaluate the *difference* between smooths (Correct- vs. Mis-pronunciations) for children with CIs and TH, over time. Model fit included parametric effects of **Group**, as well as smooths of **Time**, **Time** by **Group**, **Time** by **Condition**, and **Time** by the ordered variable of **Group** by **Condition** (to model the difference between real- and mis-pronunciations for each group). Model results are plotted in Figure \@ref(fig:ci-th-facet-plot); the model summary is included in supplementary materials. Overall, the model-estimated difference smooths show smaller differences between correct- and mis-pronunciations for the children with CIs---and that these differences take longer to manifest during online processing (left panel of Figure \@ref(fig:ci-th-facet-plot)). Further inspection of the first model, as plotted in Figure \@ref(fig:real-mp-facet-plot), demonstrates why this is the case. The children with CIs and TH do not respond significantly differently to correct pronunciations: once vocabulary size and hearing age are controlled, both groups of children respond similarly to correctly-pronounced words. Instead, children with CIs---who are listening with a degraded speech signal via electric hearing---are less sensitive to *mis*-pronunciations (Figure \@ref(fig:real-mp-facet-plot)), resulting in smaller difference smooths between correct- and mis-pronunciations. 
+
+```{r, ci-th-facet-plot, fig.cap="Difference smooths (GAMM predictions) by condition (correct- vs. mis-pronunciations) for children with CIs (L) and TH (R). Pink smooths represent the point when correct and mis-pronunciation smooths differ (i.e., reliable effect of condition) for each group: there is a larger difference between correct and mispronunciation responses for children with TH than CIs. Shaded ribbons represent 95% confidence intervals."}
+ci_diff <- get_smooths_difference(interact_model_freml, 
+                       Time, 
+                       list(GroupCondition = c("CochlearImplant.real", "CochlearImplant.MP")),
+                       exclude_random = TRUE) %>%
+  ggplot(aes(Time, difference, group = group)) +
+  geom_hline(aes(yintercept=0), color='black',lty=2,size=1.5) +
+  geom_ribbon(aes(ymin=CI_lower, ymax=CI_upper, fill = sig_diff), alpha=.3) +
+  geom_line(aes(color=sig_diff), size=2) +
+  scale_x_continuous(breaks = c(300,600,900,1200,1500,1800))+
+  ylim(-.9,2.9) +
+  #scale_y_continuous(breaks = c(0,0.5,1,1,5,2))+
+  scale_color_manual(values=c('darkslateblue', 'deeppink3')) +
+  scale_fill_manual(values=c('darkblue', 'deeppink3')) +
+  ylab("Est. difference between \n correct and mispronunciations") +
+  xlab("Time since word onset (ms)") +
+  theme(legend.position = "none",
+        axis.text.y = element_text(face="bold", size=9),
+        axis.text.x = element_text(face="bold", size=9),
+        axis.title.y = element_text(face="bold", size=12),
+        axis.title.x = element_text(face="bold", size=12)) 
+
+th_diff <- get_smooths_difference(interact_model_freml, 
+                       Time, 
+                       list(GroupCondition = c("NormalHearing.real", "NormalHearing.MP")),
+                       exclude_random = T) %>%
+  ggplot(aes(Time, difference, group = group)) +
+  geom_hline(aes(yintercept=0), color='black',lty=2,size=1.5) +
+  geom_ribbon(aes(ymin=CI_lower, ymax=CI_upper, fill = sig_diff), alpha=.3) +
+  geom_line(aes(color=sig_diff), size=2) +
+  scale_x_continuous(breaks = c(300,600,900,1200,1500,1800))+
+  #scale_y_continuous(breaks = c(0,0.5,1,1.5,2))+
+  ylim(-.9,2.9)+
+  scale_color_manual(values=c('darkslateblue', 'deeppink3')) +
+  scale_fill_manual(values=c('darkslateblue', 'deeppink3')) +
+  theme(axis.title.y = element_blank()) +
+  xlab("Time since word onset (ms)")  +
+  theme(legend.position = "none",
+        axis.text.y = element_text(face="bold", size=12),
+        axis.text.x = element_text(face="bold", size=9),
+        axis.title.x = element_text(face="bold", size=12)) 
+
+plot_grid(ci_diff, th_diff,
+          labels=c("Cochlear Implant", "Typical Hearing"), 
+          nrow=1, align="h",
+          label_x = -.05) 
+
+```
+
+```{r, real-mp-facet-plot, fig.cap="Difference smooths (GAMM predictions) by hearing status for correct pronunciations (L) and mispronunciations (R). The pink smooth represents the point when the smooth for children with CIs differs from children with TH (i.e., reliable effect of group): there is an effect of group upon mispronunciations, but not correct pronunciations. Shaded ribbons represent 95% confidence intervals."}
+real_diff <- get_smooths_difference(interact_model_freml, 
+                       Time, 
+                       list(GroupCondition = c("NormalHearing.real", "CochlearImplant.real")),
+                       exclude_random = TRUE) %>%
+  ggplot(aes(Time, difference, group=group)) +
+  geom_hline(aes(yintercept=0), color='black',lty=2,size=1.5) +
+  geom_ribbon(aes(ymin=CI_lower, ymax=CI_upper, fill = sig_diff), alpha=.3) +
+  geom_line(aes(color=sig_diff), size=2) +
+  scale_x_continuous(breaks = c(300,600,900,1200,1500,1800))+
+  ylim(-1.1,.8) +
+  #scale_y_continuous(breaks = c(0,0.5,1,1,5,2))+
+  scale_color_manual(values=c('darkslateblue', 'deeppink3')) +
+  scale_fill_manual(values=c('darkblue', 'deeppink3')) +
+  ylab("Est. Difference between hearing groups") +
+  xlab("Time since word onset (ms)") +
+  theme(legend.position = "none",
+        axis.text.y = element_text(face="bold", size=9),
+        axis.text.x = element_text(face="bold", size=9),
+        axis.title.y = element_text(face="bold", size=12),
+        axis.title.x = element_text(face="bold", size=12)) 
+
+MP_diff <- get_smooths_difference(interact_model_freml, 
+                       Time, 
+                       list(GroupCondition = c("NormalHearing.MP", "CochlearImplant.MP")),
+                       exclude_random = TRUE) %>%
+  ggplot(aes(Time, difference, group=group)) +
+  geom_hline(aes(yintercept=0), color='black',lty=2,size=1.5) +
+  geom_ribbon(aes(ymin=CI_lower, ymax=CI_upper, fill = sig_diff), alpha=.3) +
+  geom_line(aes(color=sig_diff), size=2) +
+  scale_x_continuous(breaks = c(300,600,900,1200,1500,1800))+
+  ylim(-1.1,.8) +
+  #scale_y_continuous(breaks = c(0,0.5,1,1,5,2))+
+  scale_color_manual(values=c('darkslateblue', 'deeppink3')) +
+  scale_fill_manual(values=c('darkblue', 'deeppink3')) +
+  xlab("Time since word onset (ms)") +
+  theme(legend.position = "none",
+        axis.text.y = element_text(face="bold", size=12),
+        axis.text.x = element_text(face="bold", size=9),
+        axis.title.x = element_text(face="bold", size=12),
+        axis.title.y = element_blank()) 
+
+plot_grid(real_diff, MP_diff,
+          labels=c("Correct pronunciations", "Mispronunciations"), 
+          nrow=1, align="h",
+          label_x = -.05) 
+```
+
+## Explaining individual differences in mispronunciation sensitivity
+
+```{r, read in all 74 kids}
+prepre_looks <- read.csv("../BU2017_results/data/model.csv.gz") %>% 
+  mutate(
+    Cond_Lab = Condition %>% 
+      factor(c("real", "MP", "nonsense"),
+             c("Real word", "Mispronunciation", "Nonword")))
+
+looks_a <- read.csv("../BU2017_results/data/scores.csv") %>%
+  dplyr::select(ChildStudyID, Maternal_Education_Level, Female) %>%
+  merge(., prepre_looks, by="ChildStudyID") %>%
+  mutate(elog=log((Target+0.5)/(Distractor+0.5)), # convert prop to empirical log 
+         wts=1/(Target+0.5) + (1/(Distractor+0.5))) %>%
+  filter(Condition!='nonsense') %>% # only going to look at difference between MP and real 
+  filter(TargetWord!='dog' & TargetWord!='tag') # 7 kids with TH heard dog~tog instead of rice~wice
+
+# get hearing age for all of these kids w/ CIs
+hearing_age <- read.csv('../participant_info/hearing_age.csv') %>% distinct(ChildStudyID, .keep_all = T)
+
+looks <- looks_a %>%
+  distinct(ChildStudyID, .keep_all = T) %>%
+  group_by(ResearchID) %>% 
+  mutate(num_visit = str_sub(Study, -1)) %>% # classify which visit it was (first, second, or third)
+  dplyr::select(num_visit, ChildStudyID, ResearchID) %>%
+  merge(., looks_a, by=c("ResearchID", "ChildStudyID")) %>% 
+  ungroup() %>%
+  mutate(elog=as.numeric(elog)) %>%
+  mutate(Time=as.numeric(Time),
+         Condition.ord=as.ordered(Condition),
+         Group.ord=as.ordered(Group),
+         ChildStudyID=as.factor(ChildStudyID),
+         num_visit=as.factor(num_visit),
+         WordGroup=as.factor(WordGroup),
+         ResearchID=as.factor(ResearchID)) %>% 
+  arrange(Time) %>%
+  merge(., hearing_age, by=c("ChildStudyID", "ResearchID"))
+```
+
+```{r, stan-meas-table}
+# create a table to report standardized measures, by group
+looks %>%
+  distinct(ChildStudyID, .keep_all = T) %>%
+  filter(GFTA_Standard!='NA' & EVT_GSV!='NA') %>% # leaves us with 24 TH and 33 CI
+  group_by(Group) %>%
+  summarize(mean_evt=mean(EVT_Standard),
+            sd_evt=sd(EVT_Standard),
+            min_evt=min(EVT_Standard),
+            max_evt=max(EVT_Standard),
+            mean_evt_gsv=mean(EVT_GSV),
+            sd_evt_gsv=sd(EVT_GSV),
+            min_evt_gsv=min(EVT_GSV),
+            max_evt_gsv=max(EVT_GSV),
+            mean_gfta=mean(GFTA_Standard),
+            sd_gfta=sd(GFTA_Standard),
+            min_gfta=min(GFTA_Standard),
+            max_gfta=max(GFTA_Standard)) %>%
+  mutate_at(vars(-Group), funs(round(., 2))) %>%
+  mutate(`EVT-2 standard score`=paste(mean_evt,"(",sd_evt,")",min_evt,"-",max_evt),
+         `EVT-2 GSVs`=paste(mean_evt_gsv,"(",sd_evt_gsv,")",min_evt_gsv,"-",max_evt_gsv),
+         `GFTA-2 standard score`=paste(mean_gfta,"(",sd_gfta,")",min_gfta,"-",max_gfta)) %>%
+  select(Group, tail(names(.),3)) %>%
+  rename(`Hearing Status`=Group) %>%
+    knitr::kable(., booktabs=T, 
+               caption= "Summary statistics of standardized speech-language measures, by hearing status (N=33 children with CIs and N=24 with TH). Mean (SD), range.",
+             row.names = FALSE) %>% 
+  kable_styling() %>%
+  kableExtra::kable_styling(latex_options = "hold_position")
+```
+
+```{r, demo-tab-allkids}
+# make a table for supplementary materials that includes
+# info on gender distribution, maternal ed, chrono age, and hearing age
+# for the N=33 kids w CIs and N=24 kids with TH that are analyzed
+# in the correlations
+
+allkids_gender <- looks %>%
+  distinct(ChildStudyID, .keep_all = T) %>% 
+  filter(GFTA_Standard!='NA' & EVT_GSV!='NA') %>% # leaves us with 24 TH and 33 CI
+  group_by(Group, Female) %>%
+  count() %>%
+  spread(Female,n) %>%
+  mutate(`Girls, Boys`=paste(`1`,',', `0`)) %>%
+  select(Group, `Girls, Boys`) 
+
+looks %>%
+  distinct(ChildStudyID, .keep_all = T) %>%
+  filter(GFTA_Standard!='NA' & EVT_GSV!='NA') %>% # leaves us with 24 TH and 33 CI
+  group_by(Group) %>%
+  summarize(mean_hearing_age = mean(hearing_age),
+            sd_hearing_age = sd(hearing_age),
+            range_hearing_age = range(hearing_age),
+            min_hage = min(hearing_age),
+            max_hage = max(hearing_age),
+            mean_age = mean(EVT_Age),
+            sd_age = sd(EVT_Age),
+            min_age = min(EVT_Age),
+            max_age = max(EVT_Age),
+            mean_mated = mean(Maternal_Education_Level),
+            sd_mated = sd(Maternal_Education_Level)) %>%
+  mutate_at(vars(-Group), funs(round(., 2))) %>%
+  distinct(Group, .keep_all = T) %>%
+  mutate(`Chronological Age: months` = paste(mean_age,"(",sd_age,")",min_age,"-",max_age),
+         `Hearing Age: months` = paste(mean_hearing_age,"(",sd_hearing_age,")",min_hage,"-",max_hage),
+         `Maternal Education Level` = paste(mean_mated,"(",sd_mated,")")) %>%
+  select(Group, tail(names(.),3)) %>%
+  merge(., allkids_gender, by="Group") %>%
+  relocate(Group, `Girls, Boys`) %>%
+  knitr::kable(., booktabs=T, 
+               caption= "Demographic information of children who completed standardized speech-language measures, by hearing status (N=33 children with CIs and N=24 with TH). Mean (SD), range.",
+             row.names = FALSE) %>% 
+  kable_styling() %>%
+  kableExtra::kable_styling(latex_options = "hold_position")
+```
+
+```{r, read in all CI kids}
+ci_kids <- looks %>% filter(Group=='CochlearImplant')
+```
+
+```{r, contending with autocorrelation for CIs, fig.show='hide',cache=T}
+contrasts(ci_kids$Condition.ord) <- "contr.treatment"
+ci_kids$start.event <- ci_kids$Time == 300 # mark the beginning of each speaker's trajectory; 
+                                            # where we start measuring at 300ms
+
+# make sure the data are properly ordered and classified
+ci_kids <- ci_kids %>%
+  arrange(ChildStudyID, Condition, WordGroup, Time) %>%
+  mutate(WordGroup=as.factor(WordGroup)) %>%
+  mutate(TargetWord=as.factor(TargetWord)) %>%
+  filter(GFTA_Standard!='NA' & EVT_GSV!='NA') # remove kids w/o gfta 
+
+
+# fit a model with the data properly ordered
+m1_ci <- bam(elog ~ Condition.ord +
+                  s(Time) +
+                  s(Time, by=Condition.ord) +
+                  te(Time,EVT_Age,by=Condition.ord) +
+                  s(Time, ChildStudyID, bs="fs", m=1) +
+                  s(Time, TargetWord, bs="fs", m=1) +
+                  s(Time, num_visit, bs="fs", m=1) +
+                  s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1),
+                  data=ci_kids, method="fREML") 
+
+m_acf_ci<- acf_resid(m1_ci) # plot the autocorrelation and take a look at correlation between timepoints - yikes!
+
+r1_ci <- start_value_rho(m1_ci) # first we calculate rho from the original model 
+```
+
+```{r, plotting autocorrelation for CIs, fig.show='hide', eval=FALSE}
+m_AR1_ci <- bam(elog ~   Condition.ord +
+                         s(Time) +
+                         s(Time, by=Condition.ord) +
+                         te(Time,EVT_Age,by=Condition.ord) +
+                         s(Time, ChildStudyID, bs="fs", m=1) +
+                         s(Time, TargetWord, bs="fs", m=1) +
+                         s(Time, num_visit, bs="fs", m=1) +
+                         s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1),
+                         data=ci_kids, method="fREML",
+                         rho=r1_ci, AR.start=start.event)
+saveRDS(m_AR1_ci, "../all_child_models/ci/ARI-ci.Rdata") 
+
+# we can plot the improvement here:
+m_acf_rmv_ci <- acf_resid(m_AR1_ci) # took care of the problem!
+```
+
+```{r, modeling real-MP differences for CIs, eval=FALSE}
+m_AR1_ci <- readRDS("../all_child_models/ci/ARI-ci.Rdata")
+
+# 36/37 kids have evt scores
+# 34/37 kids have gfta scores
+# 33/37 kids have gfta+evt scores
+# we only model the 33 kids who have both
+
+
+evt_model_CI <- ci_kids %>%
+  bam(elog ~      Condition.ord + 
+                  s(Time) +
+                  s(Time, by=Condition.ord) +
+                  te(Time,EVT_Age,by=Condition.ord) + 
+                  te(Time,EVT_GSV,by=Condition.ord) + # ti requires us to specify individual smooths; te does not
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs="fs", m=1) +
+                  s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1), 
+                  data=.,
+                  rho=r1_ci,
+                  method="ML",
+                  family="scat", # non-normally distributed residuals are corrected for here 
+                  discrete=TRUE,
+                  nthreads=4,
+                  select=T, # impose penalties 
+                  AR.start=start.event)
+gam.check(evt_model_CI) # looks good
+
+gfta_model_CI <- ci_kids %>%
+  bam(elog ~      Condition.ord + 
+                  s(Time) +
+                  s(Time, by=Condition.ord) +
+                  te(Time,EVT_Age,by=Condition.ord) + 
+                  te(Time,GFTA_Standard,by=Condition.ord) + 
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs="fs", m=1) +
+                  s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1), 
+                  data=.,
+                  rho=r1_ci,
+                  method="ML",
+                  family="scat", # non-normally distributed residuals are corrected for here 
+                  discrete=TRUE,
+                  nthreads=4,
+                  select=T, # impose penalties 
+                  AR.start=start.event)
+gam.check(gfta_model_CI) # looks good
+AIC(evt_model_CI, gfta_model_CI) # gfta is lower
+
+gfta_model_CI_freml <- ci_kids %>%
+  bam(elog ~      Condition.ord + 
+                  s(Time) +
+                  s(Time, by=Condition.ord) +
+                  te(Time,EVT_Age,by=Condition.ord) + 
+                  te(Time,GFTA_Standard,by=Condition.ord) + 
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs="fs", m=1) +
+                  s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1), 
+                  data=.,
+                  rho=r1_ci,
+                  method="fREML",
+                  family="scat", # non-normally distributed residuals are corrected for here 
+                  discrete=TRUE,
+                  nthreads=4,
+                  select=T, # impose penalties 
+                  AR.start=start.event)
+
+
+# does gfta improve on an evt-only model?
+gfta_evt_model_CI <- ci_kids %>%
+  bam(elog ~      Condition.ord + 
+                  s(Time) +
+                  s(Time, by=Condition.ord) +
+                  te(Time,EVT_Age,by=Condition.ord) + 
+                  te(Time,GFTA_Standard,by=Condition.ord) + 
+                  te(Time,EVT_GSV,by=Condition.ord) + 
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) + 
+                  s(Time, num_visit, bs='fs', m=1) +
+                  s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1), 
+                  data=.,
+                  rho=r1_ci,
+                  method="ML",
+                  family="scat", # non-normally distributed residuals are corrected for here 
+                  discrete=TRUE,
+                  nthreads=4,
+                  select=T, # impose penalties 
+                  AR.start=start.event)
+gam.check(gfta_evt_model_CI) 
+
+AIC(gfta_model_CI,gfta_evt_model_CI) # more complex model is not justified; evt doesn't improve on gfta
+compareML(gfta_model_CI,gfta_evt_model_CI) # more complex model is not justified
+AIC(evt_model_CI,gfta_evt_model_CI) # gfta-evt model is justified; gfta improves on evt-only 
+compareML(evt_model_CI,gfta_evt_model_CI) # gfta + evt minimal improvement 
+
+saveRDS(gfta_model_CI_freml, "../all_child_models/ci/gfta-model-ci-freml.Rdata") 
+saveRDS(gfta_evt_model_CI, "../all_child_models/ci/evt-gfta-model-ci.Rdata") # these were run with ML
+saveRDS(gfta_model_CI, "../all_child_models/ci/gfta-model-ci.Rdata")
+saveRDS(evt_model_CI, "../all_child_models/ci/evt-model-ci.Rdata")
+```
+
+Having established that children with CIs are less sensitive to mispronunciations than their TH peers, we next correlated the children's responses with two different standardized speech-language assessments: expressive vocabulary size (EVT-2) and spoken phonetic/articulatory accuracy (GFTA-2). Because we took an individual differences approach, we examined the children with CIs and TH separately. 
+
+We modeled the effects of vocabulary size and articulation on *all* children who completed both assessments (N=33 with CIs and N=24 with TH) by using stepwise GAMM fitting. Specifically, we assessed the non-linear interaction between **Time**, **Condition**, and **Vocabulary Score**/**Phonetic Accuracy** to evaluate if children's vocabulary sizes and/or phonetic accuracy mediated their looks to the target over time for the correct- and mis-pronunciation conditions. As before, all models included factor (random) smooths by participant, observation, and item. Each additionally included a difference smooth of **Time** and **Participant** by **Condition** (*Correct-* versus *Mis-pronunciation*). A baseline model was fit with a parametric term for **Condition**, smooth terms for **Time** and **Time** by **Condition**, as well as a non-linear interaction (tensor product) of **Time** and **Child Age** (modeled continuously) by **Condition**. In all models we included the tensor product term with child age because our variables of interest, vocabulary score and phonetic accuracy, are confounded with age and we wanted to evaluate the potential influence of these speech-language abilities independent of child age. 
+
+We fit the non-linear interaction of **Time**, **Condition**, and **Vocabulary Score** and **Time**, **Condition**, and **Phonetic Accuracy** using tensor product terms. For the children with TH, neither the vocabulary nor phonetic accuracy term improved upon a baseline model controlling for child age. This result indicates that, for the children with TH, mispronunciation sensitivity---the difference in looks to the target image in correct- versus mis-pronunciation conditions---is not mediated by vocabulary size or phonetic accuracy. For the children with CIs, best model fit included **Phonetic Accuracy**; **Vocabulary Score** did not improve upon model fit. The final model summary for the children with CIs is included in the supplementary materials. 
+
+Once again, it is necessary to plot the model predictions in order to interpret GAMM outputs, in this case how phonetic accuracy mediates mispronunciation sensitivity for the children with CIs. To facilitate interpretation of the non-linear three-way interaction, the children with CIs were divided into tertiles by vocabulary score and phonetic accuracy. Predictions from the model, by articulatory tertile, are plotted in Figure \@ref(fig:CI-diff-plot) and raw response curves are plotted in Figure \@ref(fig:CI-raw-plot). The model predictions demonstrate that stronger articulators show larger differences between looks to the target for correct- versus mis-pronunciations (higher overall y-intercept value) and that stronger articulators show significant differences between correct- and mis-pronunciations slightly earlier in the analysis window (cross-over from purple to pink smooth occurs sooner in the analysis window). Thus, for the children with CIs, phonetic/articulatory accuracy predicts mispronunciation sensitivity, independent of age and language ability.
+
+```{r, CI-diff-plot, fig.cap="Difference smooths (GAMM predictions) between correct- and mis-pronunciations for children with CIs, by standardized articulatory score. Pink smooths represent the point when correct- and mis-pronunciations smooths differ (i.e., reliable effect of condition). Children were divided into tertiles by score with smooths representing the median score for poorer (median score=57), better (72), and best (96) articulators."}
+gfta_model_CI_freml <- readRDS("../all_child_models/ci/gfta-model-ci-freml.Rdata")
+
+# create tertiles
+ci_kids3 <- ci_kids %>%
+  mutate(tertile=as.factor(ntile(GFTA_Standard, 3))) %>%
+  distinct(ChildStudyID, .keep_all = T) %>%
+  select(ChildStudyID,tertile,EVT_GSV,GFTA_Standard)
+
+get_med <- ci_kids %>%
+  mutate(tertile=as.factor(ntile(GFTA_Standard, 3))) %>%
+  group_by(tertile) %>%
+  summarize(med_gfta=median(GFTA_Standard)) # get the median gfta for each tertile
+
+
+# get the model smooth fits for median values in each tertile
+low <- get_smooths_difference(gfta_model_CI_freml, 
+                       "Time", 
+                       list(Condition.ord = c("real","MP")),
+                       exclude_random = F,
+                       cond = (list(GFTA_Standard=57))) %>%
+                      mutate(level="57")
+
+med <- get_smooths_difference(gfta_model_CI_freml, 
+                       "Time", 
+                       list(Condition.ord = c("real","MP")),
+                       exclude_random = F,
+                       cond = (list(GFTA_Standard=72))) %>%
+                       mutate(level="72") 
+
+get_smooths_difference(gfta_model_CI_freml, 
+                       "Time", 
+                       list(Condition.ord = c("real","MP")),
+                       exclude_random = F,
+                       cond = (list(GFTA_Standard=96))) %>%
+  mutate(level="96") %>%
+  rbind(., med) %>%
+  rbind(., low) %>%
+  mutate(`GFTA score`=factor(level, c("96","72","57"))) %>%
+  ggplot(aes(Time, difference, group = `GFTA score`)) +
+  geom_hline(aes(yintercept=0), color='black',lty=2,size=1.5) +
+  geom_line(aes(color=sig_diff, alpha=`GFTA score`), size=3) +
+  scale_x_continuous(breaks = c(300,600,900,1200,1500,1800))+
+  ylim(-.4,1.75) +
+  scale_color_manual(values=c('darkslateblue', 'deeppink3')) +
+  scale_fill_manual(values=c('darkblue', 'deeppink3')) +
+  scale_alpha_manual(values=c(1,.6,.3)) +
+  ylab("Est. difference between \n correct and mispronunciations") +
+  xlab("Time since word onset (ms)") +
+  #ggtitle("Difference smooths between correct- and \n mis-pronunciations for children with CIs, \n by standardized articulatory score") +
+  annotate(geom="text", x=1720, y=1.66, size=5, label="Best") +
+  annotate(geom="text", x=1720, y=1.2, size=5, label="Better", color='gray35') +
+  annotate(geom="text", x=1720, y=.97, size=5, label="Poorer", color='gray50') +
+  theme(legend.position = "none",
+        axis.text.x = element_text(face="bold", size=9),
+        axis.title.x=element_text(face="bold", size=12),
+        axis.text.y = element_text(face="bold", size=9),
+        axis.title.y = element_text(face="bold", size=12))
+```
+
+```{r, CI-raw-plot, fig.cap="Raw response trajectories for proportion of looks to familiar image for children with CIs, by word condition and standardized articulatory score. Children were divided into tertiles by score: poorer (median score=57), better (72), and best (96) articulators."}
+
+ci_kids_plot <- ci_kids %>%
+  merge(., ci_kids3, by='ChildStudyID')
+ci_kids_plot$ConditionChild <- interaction(ci_kids_plot$Condition,ci_kids_plot$ChildStudyID)
+
+ci_kids_plot %>%
+  mutate(tertile=recode(tertile, "1"="Poorer","2"="Better","3"="Best")) %>%
+  ggplot(., aes(x=Time, y=elog)) +
+  geom_line(aes(group=factor(ConditionChild),alpha=tertile,color=Condition), stat="smooth", method="loess",se=FALSE, size=.8) + 
+  scale_color_manual(values=c('turquoise4','darkgoldenrod2')) +
+  scale_alpha_manual(values=c(.4,.6,1)) +
+  facet_wrap(~tertile) +
+  xlab("Time (ms)") + 
+  ylab("Elog") + 
+  ylim(-2,4) +
+  theme(axis.text=element_text(size=12),
+        plot.margin = unit(c(1,1,2,1), "lines"),
+        axis.title=element_text(size=17,face="bold"),
+        strip.text = element_text(size=12,face='bold'),
+        legend.position="none") + 
+      annotate(geom="text", x=525, y=2.7, size=4, label="Correct",color='darkgoldenrod3') +
+      annotate(geom="text", x=900, y=-1.2, size=4, label="Mispronunciation",color='turquoise4')
+```
+
+```{r, read in all TH kids}
+th_kids <- looks %>% filter(Group!='CochlearImplant')
+```
+
+```{r, contending with autocorrelation for THs, fig.show='hide',cache=T}
+contrasts(th_kids$Condition.ord) <- "contr.treatment"
+th_kids$start.event <- th_kids$Time == 300 # mark the beginning of each speaker's trajectory; 
+                                            # where we start measuring at 300ms
+
+# make sure the data are properly ordered and classified
+th_kids <- th_kids %>%
+  arrange(ChildStudyID, Condition, WordGroup, Time) %>%
+  mutate(WordGroup=as.factor(WordGroup)) %>%
+  mutate(TargetWord=as.factor(TargetWord)) #%>%
+  #filter(GFTA_Standard!='NA') # remove kids w/o gfta; all kids have EVT
+
+
+# fit a model with the data properly ordered
+m1_th <- bam(elog ~ Condition.ord +
+                  s(Time) +
+                  s(Time, by=Condition.ord) +
+                  s(Time, ChildStudyID, bs="fs", m=1) +
+                  s(Time, TargetWord, bs="fs", m=1) +
+                  s(Time, num_visit, bs="fs", m=1) +
+                  s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1),
+                  data=th_kids, method="fREML") 
+
+m_acf_th<- acf_resid(m1_th) # plot the autocorrelation and take a look at correlation between timepoints - yikes!
+
+r1_th <- start_value_rho(m1_th) # first we calculate rho from the original model 
+```
+
+```{r, plotting autocorrelation for TH, fig.show='hide', eval=FALSE}
+m_AR1_th <- bam(elog ~   Condition.ord +
+                         s(Time) +
+                         s(Time, by=Condition.ord) +
+                         s(Time, ChildStudyID, bs="fs", m=1) +
+                         s(Time, TargetWord, bs="fs", m=1) +
+                         s(Time, num_visit, bs="fs", m=1) +
+                         s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1),
+                         data=th_kids, method="fREML",
+                         rho=r1_th, AR.start=start.event)
+saveRDS(m_AR1_th, "../all_child_models/th/ARI-th.Rdata") 
+
+# we can plot the improvement here:
+m_acf_rmv_th <- acf_resid(m_AR1_th) # took care of the problem!
+```
+
+```{r, modeling TH ind differences, eval=FALSE}
+# all 37 kids have evt scores
+# 24/37 kids have gfta scores
+# we only model the 24 kids who have both
+
+# first check if vocab matters at all
+age_model_th <- th_kids %>%
+  bam(elog ~      Condition.ord + 
+                  s(Time) +
+                  s(Time, by=Condition.ord) +
+                  te(Time,EVT_Age,by=Condition.ord) + 
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs='fs', m=1) + 
+                  s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1), 
+                  data=.,
+                  rho=r1_th,
+                  method="ML",
+                  family="scat", 
+                  discrete=TRUE,
+                  nthreads=4,
+                  select=T, 
+                  AR.start=start.event)
+
+evt_model_th <- th_kids %>%
+  bam(elog ~      Condition.ord + 
+                  s(Time) +
+                  s(Time, by=Condition.ord) +
+                  te(Time,EVT_Age,by=Condition.ord) + 
+                  te(Time,EVT_GSV,by=Condition.ord) + 
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs='fs', m=1) + 
+                  s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1), 
+                  data=.,
+                  rho=r1_th,
+                  method="ML",
+                  family="scat", 
+                  discrete=TRUE,
+                  nthreads=4,
+                  select=T, 
+                  AR.start=start.event)
+gam.check(evt_model_th) # looks good
+compareML(age_model_th,evt_model_th) # evt doesn't improve upon baseline
+
+gfta_model_th <- th_kids %>%
+  bam(elog ~      Condition.ord + 
+                  s(Time,k=15) +
+                  s(Time, by=Condition.ord,k=15) +
+                  te(Time,EVT_Age,by=Condition.ord) + 
+                  te(Time,GFTA_Standard,by=Condition.ord) +
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs='fs', m=1) + 
+                  s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1), 
+                  data=.,
+                  rho=r1_th,
+                  method="ML",
+                  family="scat", 
+                  discrete=TRUE,
+                  nthreads=4,
+                  select=T, # impose penalties 
+                  AR.start=start.event)
+gam.check(gfta_model_th) # looks good
+AIC(evt_model_th, gfta_model_th) # gfta is lower
+AIC(age_model_th,gfta_model_th) # but higher than age model
+
+
+saveRDS(age_model_th, "../all_child_models/th/age-model-th.Rdata")
+saveRDS(gfta_model_th, "../all_child_models/th/gfta-model-th.Rdata")
+saveRDS(evt_model_th, "../all_child_models/th/evt-model-th.Rdata")
+```
+
+```{r, explore s-shaped processing, fig.cap="Raw response trajectories and audio stimulus for proportion of looks to image of soup for children with TH. Children were divided into tertiles by chronological age."}
+
+th_kids <- th_kids %>%
+  mutate(age_tertile=as.factor(ntile(EVT_Age, 3))) 
+
+get_med <- th_kids %>%
+  mutate(age_tertile=as.factor(ntile(EVT_Age, 3))) %>%
+  group_by(age_tertile) %>%
+  summarize(med_ha=median(EVT_Age)) 
+
+# what's the age range?
+get_range <- th_kids %>%
+  group_by(age_tertile) %>%
+  summarize(min_age = min(EVT_Age),
+            max_age = max(EVT_Age))
+
+shoup <- th_kids %>%
+  filter(TargetWord=='Sup') %>%
+  ggplot(., aes(x=Time, y=elog)) +
+  geom_line(aes(group=factor(age_tertile),alpha=age_tertile), stat="smooth", method="loess",se=FALSE, size=.6) + 
+  scale_alpha_manual(values=c(.2,.6,1)) +
+  xlab("Time (ms)") + 
+  ylab("Elog") + 
+  ylim(-2,4) +
+  xlim(0,1800) +
+  theme(axis.text=element_text(size=12),
+        plot.margin = unit(c(1,1,2,1), "lines"),
+        axis.title=element_text(size=17,face="bold"),
+        strip.text = element_text(size=12,face='bold'),
+        legend.position="none") +
+      annotate(geom="text", x=750, y=1.1, size=5, label="36-48 mos",color='gray50') +
+      annotate(geom="text", x=500, y=0.2, size=5, label="49-57 mos",color='gray37') +
+      annotate(geom="text", x=750, y=-.3, size=5, label="58-66 mos",color='black')
+```
+
+
+
+# Appendices
+```{r, audiological-info}
+# get a list of research IDs of kids who were matched to TH; N=15
+matched_cis <- all_kids2 %>%
+  distinct(ResearchID, .keep_all = T) %>%
+  filter(Group=='CochlearImplant') %>%
+  select(ResearchID) %>%
+  mutate(`Matched to child with TH?` = 'Y')
+
+all_cis <- read.csv('../participant_info/audiological_info.csv') %>% 
+  distinct(ResearchID, .keep_all = T) 
+
+not_matched_cis <- all_cis %>%
+  anti_join(.,matched_cis,by=c("ResearchID")) %>%
+  mutate(`Matched to child with TH?` = 'N') 
+
+all_cis2 <- matched_cis %>%
+  merge(all_cis, by='ResearchID') %>%
+  rbind(., not_matched_cis)
+
+all_cis2 %>%
+  rename(Participant = ResearchID,
+         `Chronological age`=EVT_Age,
+         `Age at hearing loss` = age_at_hearing_loss,
+         `Age at activation` = age_at_activation,
+         `Hearing age` = hearing_age,
+         Etiology=etiology,
+         `Device formation`=device_formation,
+         `Activation order`=activation_order) %>%
+  select(-X,-ChildStudyID) %>%
+  knitr::kable(., booktabs=T, 
+              caption= "Audiological information from the N=25 unique children with cochlear implants studied.",
+             row.names = FALSE) %>% 
+  kable_styling() %>%
+  kableExtra::kable_styling(latex_options = "hold_position")
+```
+
+# Supplementary Materials
+
+```{r, diff-model-summary}
+diff_model <- readRDS("../hearingage_matched_models/diff-model.Rdata")
+
+gamtabs(diff_model,
+        caption = "Predicting the degree of mispronunciation sensitivity by hearing status.",
+        #label="Table 1",
+        pnames = c("Intercept", "Typical Hearing"), # the parametric terms
+        snames = c("s(Time)",
+                   "s(Time,Cochlear Implant)","s(Time,Typical Hearing)",
+                   "s(Time,Correct)","s(Time,Typical Hearing; Correct)",
+                   "s(Time,Child)","s(Time,Item)","s(Time,Observation)")
+        )
+```
+
+```{r, ci-ind-diff-summary}
+gfta_model_CI_freml <- readRDS("../all_child_models/ci/gfta-model-ci-freml.Rdata")
+
+gamtabs(gfta_model_CI_freml,
+        caption = "Predicting the degree of mispronunciation sensitivity by phonetic accuracy score.",
+        pnames = c("Intercept", "Correct"), # the parametric terms
+        snames = c("s(Time)",
+                   "s(Time,Correct)",
+                   "te(Time,Age; Correct)",
+                   "te(Time,Phonetic Accuracy; Correct)",
+                   "s(Time,Child)",
+                   "s(Time,Item)",
+                   "s(Time,Observation)",
+                   "s(Time,Child; Corrrect)"
+        ))
+```
+

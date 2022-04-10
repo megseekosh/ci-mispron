@@ -1,0 +1,118 @@
+---
+title: "ci_mispron: match children"
+author: "Meg Cychosz"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: 
+  bookdown::pdf_document2:
+    keep_tex: true
+    toc: False
+    number_sections: False
+indent: true
+---
+
+```{r setup, include = FALSE}
+library("knitr")
+library('tidyverse')
+library('Matching')
+```
+
+```{r, load in data}
+# This reads in from the directory containing dataframes with the children's scores, matching #s, trial #s, and props of looks to target.
+prepre_looks <- read.csv("../BU2017_results/data/model.csv.gz") %>% 
+  mutate(
+    Cond_Lab = Condition %>% 
+      factor(c("real", "MP", "nonsense"),
+             c("Real word", "Mispronunciation", "Nonword")))
+
+looks <- read.csv("../BU2017_results/data/scores.csv") %>%
+  dplyr::select(ChildStudyID, Maternal_Education_Level, Female,AAE,LateTalker) %>%
+  merge(., prepre_looks, by="ChildStudyID") # get maternal education
+
+for_matching <- looks %>% 
+  mutate(CImplant=recode(Group, 'CochlearImplant'='1', 'NormalHearing'='0')) %>%
+  dplyr::select(ChildStudyID, ResearchID, Female, CImplant, Maternal_Education_Level, EVT_Age) 
+
+set.seed(1234)
+```
+
+```{r, make hearing age matches}
+audio_info <- read.csv('../participant_info/JASA_audio_info.csv') %>% 
+  filter(Cimplant==1) %>%
+  dplyr::select(Speaker, age_at_activation) %>%
+  rename(ResearchID=Speaker) %>%
+  mutate(ResearchID=substring(ResearchID,1,4))
+
+CI_kids <- audio_info %>%
+  merge(., for_matching, by='ResearchID') %>%
+  mutate(hearing_age=EVT_Age-age_at_activation) 
+
+# remerge with kids with TH
+for_ha_matching <- for_matching %>%
+  filter(CImplant==0) %>%
+  mutate(hearing_age=EVT_Age,
+         age_at_activation='NA') %>%
+  rbind(., CI_kids) %>%
+  distinct(., ChildStudyID, .keep_all = T) 
+
+attach(for_ha_matching)
+
+ha_sd <- for_ha_matching %>% 
+  summarize(sd(hearing_age))
+
+ha_vars <- for_ha_matching %>%
+  dplyr::select(hearing_age, Female, Maternal_Education_Level) %>%
+  data.matrix(.)
+
+ha_output <- Match(Y=NULL, # we don't have the outcome measures yet
+                CImplant, # control and treatment groups; must be 0 & 1
+                ha_vars, # matrix of variables to match on
+                M = 1, # one-to-one matching
+                exact = c(FALSE, FALSE, FALSE), # don't need exact matching for any variables 
+                caliper = c(.5, 0, 2), # .5 sds flexibility for hearing age ; 2 sd flexibility for mat ed; 
+                replace=FALSE, # don't match multiple CI kids to diff controls
+                ties=TRUE, 
+                Weight = 1)
+               
+summary(ha_output)
+
+#  first, number rows of original dataframe 
+for_ha_matching$row_number <- as.numeric(rownames(for_ha_matching))
+
+#create case-control table
+ha_output <- data.frame(ha_output$index.treated, ha_output$index.control) # our case-control table
+colnames(ha_output) <- c("CI", "NH")
+
+ha_output_final <- ha_output %>%
+  gather("hearing_status", "row_number", CI, NH) %>%
+  merge(., for_ha_matching, by='row_number') %>%
+  distinct(., ChildStudyID, .keep_all = T) %>%
+  merge(., looks, by=c('ChildStudyID','EVT_Age','Maternal_Education_Level','Female','ResearchID')) # remerge with eyetracking data; but now this only includes matches
+
+# sanity check; successfully matched (with and wo repeated measures)
+ha_to_check <- ha_output_final %>%
+  group_by(hearing_status) %>%
+  distinct(ChildStudyID, .keep_all = T) %>%
+  summarize(ha_mean = mean(hearing_age),
+            mat_ed_mean = mean(Maternal_Education_Level),
+            evt_mean = mean(EVT_GSV)) 
+
+ha_gender <- ha_output_final %>%
+  group_by(hearing_status,Female) %>%
+  distinct(ChildStudyID, .keep_all = T) %>%
+  summarize(gender_n = NROW(Female))
+
+# there should be n=34 (n=17 NH & n=17 CI)
+ha_to_check2 <- ha_output_final %>%
+  distinct_at(., vars(hearing_status, ChildStudyID)) %>%
+  count(hearing_status)
+
+# export these matched kids
+ha_output_final %>%
+ mutate(elog=log((Target+0.5)/(Distractor+0.5)), # convert prop to empirical log 
+         wts=1/(Target+0.5) + (1/(Distractor+0.5))) %>%
+ write.csv(., './ha_matched_kids.csv')
+```
+
+
+
+
