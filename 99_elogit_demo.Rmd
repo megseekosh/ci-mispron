@@ -1,0 +1,269 @@
+---
+title: "Brief Demo of Empirical Logit Regression"
+output: 
+  rmarkdown::github_document: default
+date: '2022-04-27'
+references:
+- id: Barr2008
+  author:
+    - family: Barr
+      given: Dale J.
+  citation-key: Barr2008
+  container-title: Journal of Memory and Language
+  DOI: 10.1016/j.jml.2007.09.002
+  issued:
+    - year: 2008
+      month: 11
+  page: 457-474
+  title: >-
+    Analyzing 'visual world' eyetracking data using multilevel logistic
+    regression
+  type: article-journal
+  volume: '59'
+---
+
+```{r setup, include = FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(
+    echo = TRUE,
+    collapse = TRUE,
+    comment = "#>",
+    fig.align = "center",
+    fig.retina = 1,
+    fig.width = 6,
+    fig.height = 4,
+    dpi = 300,
+    dev = if (requireNamespace("ragg")) "ragg_png" else NULL
+)
+```
+
+Let's consider the data for just the children with typical hearing. 
+
+```{r, message = FALSE}
+library(tidyverse)
+data_all <- here::here("ha_matched_kids.csv") |> 
+  read_csv(
+    col_select = c(
+      "ResearchID", "ChildStudyID", "Group", "Study", 
+      "Condition", "Time", "WordGroup", "TargetWord",  
+      "Target", "Distractor", 
+      "Prop", "elog", "wts"
+    )
+  ) |> 
+  filter(Condition != "nonsense")
+
+data_tp1_th <- data_all |> 
+  filter(Group == "NormalHearing", Study == "TimePoint1")
+
+glimpse(data_tp1_th)
+```
+
+@Barr2008 provides a description and motivation of empirical logit regression.
+
+> When transforming data onto the log odds scale, either for visualization
+> purposes or to filter out eyemovement based dependencies in the data, problems
+> arise applying the [logit] link function whenever the probability *φ*
+> approaches zero or one. This is because the resulting *η* will approach
+> negative or positive infinity. Agresti (2002), and McCullagh and Nelder (1989)
+> recommend instead the empirical logit transformation. To compute the empirical
+> logit, it is necessary to aggregate over multiple observations. Instead of
+> computing proportions and applying the link function, one computes:
+
+$$\eta' = \ln ( \frac{y + .5}{n - y + .5} ) $$
+
+> In the equation, *y* is the number of times that the target event was
+> observed, and *n* is the total number of cases over which *y* was observed.
+> When performing empirical logit regression, McCullagh and Nelder (1989)
+> suggest performing a weighted linear regression with weights 1/*ν* where
+
+$$ \nu = \frac{1}{y + .5} + \frac{1}{n - y + .5} $$
+
+So we can compute them as follows:
+
+```{r}
+data_tp1_th <- data_tp1_th |> 
+  mutate(
+    events = Target + Distractor,
+    elogit = log((Target + .5) / (Distractor + .5)),
+    elogit_wts = (1 / (Target + .5)) + (1 / (Distractor + .5))
+  ) 
+```
+
+
+Note that these values match what we had precomputed already:
+
+```{r}
+data_tp1_th |>
+  select(events, elog, elogit, wts, elogit_wts)
+```
+
+We can look at the weights applied to the model (the `1 / elogit_wts` form) as a
+function of how much information (events) that point contains.
+
+```{r}
+ggplot(data_tp1_th) + 
+  aes(x = events, y = 1 / elogit_wts) + 
+  geom_point()
+
+```
+
+Bins where there are very few events receive a lower weight than bins with more
+events.
+
+Things get a little more complicated when we look at the gaze proportion associated with each weight.
+
+```{r}
+ggplot(data_tp1_th) + 
+  aes(x = Prop, y = 1 / elogit_wts) + 
+  geom_text(aes(label = events))
+```
+
+This weighting scheme upweights proportions in the middle compared to events at
+the ends. Those are also the proportions with largest absolute elogit values.
+
+I am not sure how to convery it visually but here are the proportions converted into elogits with points sized by model weights.
+
+```{r}
+ggplot(data_tp1_th) + 
+  aes(x = Prop, y = elogit, size = 1 / elogit_wts ) + 
+  geom_text(aes(label = events))
+```
+
+## Modeling
+
+
+Let's set up a simple example with an unweighted versus and weighted model.
+Model comparison favors the weighted model.
+
+```{r}
+library(mgcv)
+
+as_difference_factor <- function(xs, ordering = NULL) {
+  if (!is.null(ordering)) {
+    xs <- ordered(xs, ordering)
+  } else {
+    xs <- ordered(xs)
+  }
+  contrasts(xs) <- "contr.treatment"
+  xs
+}
+
+data_tp1_th$Condition_Diff <- as_difference_factor(data_tp1_th$Condition)
+
+data_tp1_th <- data_tp1_th |> 
+  arrange(ResearchID, ChildStudyID, Condition, WordGroup, Time) |> 
+  mutate(
+    ChildStudyFactor = factor(ChildStudyID),
+    WordGroupFactor = factor(WordGroup),
+    model_weights = 1 / elogit_wts
+  ) |> 
+  group_by(ResearchID, ChildStudyID, Condition, WordGroup) |> 
+  mutate(
+    ar_starts = Time == min(Time)
+  ) |> 
+  ungroup()
+
+m1 <- bam(
+  elogit ~ Condition + 
+    s(Time) + 
+    s(Time, by = Condition_Diff) + 
+    s(WordGroupFactor, bs = "re") +
+    s(WordGroupFactor, bs = "re", by = Condition_Diff) +
+    s(Time, ChildStudyFactor, bs = "fs", m = 1) + 
+    s(Time, ChildStudyFactor, bs = "fs", m = 1, by = Condition_Diff), 
+  method = "REML",
+  data = data_tp1_th
+)
+summary(m1)
+
+m2 <- bam(
+  elogit ~ Condition + 
+    s(Time) + 
+    s(Time, by = Condition_Diff) + 
+    s(WordGroupFactor, bs = "re") +
+    s(WordGroupFactor, bs = "re", by = Condition_Diff) +
+    s(Time, ChildStudyFactor, bs = "fs", m = 1) + 
+    s(Time, ChildStudyFactor, bs = "fs", m = 1, by = Condition_Diff), 
+  data = data_tp1_th, 
+  weights = data_tp1_th$model_weights, 
+  method = "REML"
+)
+summary(m2)
+
+itsadug::compareML(m1, m2)
+```
+
+Let's also do the rho thing. I already sort the data to have increasing time values within a child x condition x word group.
+
+```{r}
+rho <- itsadug::start_value_rho(m1, plot = TRUE)
+
+m3 <- bam(
+  elogit ~ Condition + 
+    s(Time) + 
+    s(Time, by = Condition_Diff) + 
+    s(WordGroupFactor, bs = "re") +
+    s(WordGroupFactor, bs = "re", by = Condition_Diff) +
+    s(Time, ChildStudyFactor, bs = "fs", m = 1) + 
+    s(Time, ChildStudyFactor, bs = "fs", m = 1, by = Condition_Diff), 
+  data = data_tp1_th, 
+  weights = data_tp1_th$model_weights, 
+  rho = rho, 
+  AR.start = data_tp1_th$ar_starts,
+  method = "REML"
+)
+
+itsadug::compareML(m2, m3)
+```
+
+### Residuals
+
+We don't care about elogit residuals. We care about the difference between the
+proportions.
+
+```{r}
+m1r <- data_tp1_th$Prop - plogis(fitted(m1))
+summary(m1r)
+hist(m1r)
+
+m2r <- data_tp1_th$Prop - plogis(fitted(m2))
+summary(m2r)
+hist(m2r)
+
+m3r <- data_tp1_th$Prop - plogis(fitted(m3))
+summary(m3r)
+hist(m3r)
+```
+
+What this autocorrelation does to the average residual here is bonkers. Maybe we
+should not use it?
+
+
+### Some plots
+
+```{r}
+gratia::draw(m1)
+gratia::draw(m2)
+
+gratia::compare_smooths(m1, m2) |> 
+  gratia::draw()
+
+gratia::smooth_estimates(
+  m2, 
+  c("s(Time)", "s(Time):Condition_Diffreal")
+) |>
+  gratia::add_confint() |> 
+  ggplot() + 
+    aes(x = Time, y = est) + 
+  geom_line() +
+    geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci), alpha = .1) + 
+  facet_wrap("smooth") + 
+  labs(y = "Partial effect")
+```
+
+
+
+
+
+## References 
