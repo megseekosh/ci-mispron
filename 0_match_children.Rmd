@@ -18,13 +18,13 @@ library('Matching')
 
 ```{r, load in data}
 # This reads in from the directory containing dataframes with the children's scores, matching #s, trial #s, and props of looks to target.
-prepre_looks <- read.csv("../BU2017_results/data/model.csv.gz") %>% 
+prepre_looks <- read.csv("./data/model.csv.gz") %>% 
   mutate(
     Cond_Lab = Condition %>% 
       factor(c("real", "MP", "nonsense"),
              c("Real word", "Mispronunciation", "Nonword")))
 
-looks <- read.csv("../BU2017_results/data/scores.csv") %>%
+looks <- read.csv("./data/scores.csv") %>%
   dplyr::select(ChildStudyID, Maternal_Education_Level, Female,AAE,LateTalker) %>%
   merge(., prepre_looks, by="ChildStudyID") # get maternal education
 
@@ -36,7 +36,7 @@ set.seed(1234)
 ```
 
 ```{r, make hearing age matches}
-audio_info <- read.csv('../participant_info/JASA_audio_info.csv') %>% 
+audio_info <- read.csv('./data/audio_info.csv') %>% 
   filter(Cimplant==1) %>%
   dplyr::select(Speaker, age_at_activation) %>%
   rename(ResearchID=Speaker) %>%
@@ -109,8 +109,10 @@ ha_to_check2 <- ha_output_final %>%
 # export these matched kids
 ha_output_final %>%
  mutate(elog=log((Target+0.5)/(Distractor+0.5)), # convert prop to empirical log 
-         wts=1/(Target+0.5) + (1/(Distractor+0.5))) %>%
- write.csv(., './ha_matched_kids.csv')
+        elog_wts=(1/(Target+0.5)) + (1/(Distractor+0.5))) %>%
+ write.csv(., './data/ha_matched_kids.csv')
+
+
 ```
 
 

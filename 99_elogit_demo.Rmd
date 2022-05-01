@@ -41,19 +41,19 @@ knitr::opts_chunk$set(
 Let's consider the data for just the children with typical hearing. 
 
 ```{r, message = FALSE}
-library(tidyverse)
-data_all <- here::here("ha_matched_kids.csv") |> 
+data_all <- here::here("./data/ha_matched_kids.csv") %>% 
   read_csv(
     col_select = c(
       "ResearchID", "ChildStudyID", "Group", "Study", 
       "Condition", "Time", "WordGroup", "TargetWord",  
       "Target", "Distractor", 
-      "Prop", "elog", "wts"
+      "Prop", "elog", "elog_wts"
     )
-  ) |> 
-  filter(Condition != "nonsense")
+  ) %>% 
+  filter(Condition != "nonsense") %>%
+  filter(TargetWord!='dog' & TargetWord!='tag')
 
-data_tp1_th <- data_all |> 
+data_tp1_th <- data_all %>% 
   filter(Group == "NormalHearing", Study == "TimePoint1")
 
 glimpse(data_tp1_th)
@@ -82,20 +82,20 @@ $$ \nu = \frac{1}{y + .5} + \frac{1}{n - y + .5} $$
 So we can compute them as follows:
 
 ```{r}
-data_tp1_th <- data_tp1_th |> 
+data_tp1_th <- data_tp1_th %>%
   mutate(
     events = Target + Distractor,
     elogit = log((Target + .5) / (Distractor + .5)),
     elogit_wts = (1 / (Target + .5)) + (1 / (Distractor + .5))
-  ) 
+  )
 ```
 
 
 Note that these values match what we had precomputed already:
 
 ```{r}
-data_tp1_th |>
-  select(events, elog, elogit, wts, elogit_wts)
+data_tp1_th %>%
+  dplyr::select(events, elog, elogit, elog_wts, elogit_wts)
 ```
 
 We can look at the weights applied to the model (the `1 / elogit_wts` form) as a
@@ -105,7 +105,6 @@ function of how much information (events) that point contains.
 ggplot(data_tp1_th) + 
   aes(x = events, y = 1 / elogit_wts) + 
   geom_point()
-
 ```
 
 Bins where there are very few events receive a lower weight than bins with more
@@ -122,7 +121,7 @@ ggplot(data_tp1_th) +
 This weighting scheme upweights proportions in the middle compared to events at
 the ends. Those are also the proportions with largest absolute elogit values.
 
-I am not sure how to convery it visually but here are the proportions converted into elogits with points sized by model weights.
+I am not sure how to convey it visually but here are the proportions converted into elogits with points sized by model weights.
 
 ```{r}
 ggplot(data_tp1_th) + 
@@ -133,8 +132,9 @@ ggplot(data_tp1_th) +
 ## Modeling
 
 
-Let's set up a simple example with an unweighted versus and weighted model.
-Model comparison favors the weighted model.
+Let's set up a simple example with an unweighted versus and weighted model. Note that MC changed the factor smooths for item from Word *group* to target word. We don't want to model hierarchical effects at the item level (i.e., lumping both the correct and mispronunciations together for the factor smooths). We want to allow different amounts of wiggliness for each and every item.
+
+After MC's edits, model comparison now favors the un-weighted model in the more appropriate, non-gaussian model.
 
 ```{r}
 library(mgcv)
@@ -151,28 +151,30 @@ as_difference_factor <- function(xs, ordering = NULL) {
 
 data_tp1_th$Condition_Diff <- as_difference_factor(data_tp1_th$Condition)
 
-data_tp1_th <- data_tp1_th |> 
-  arrange(ResearchID, ChildStudyID, Condition, WordGroup, Time) |> 
+data_tp1_th <- data_tp1_th %>% 
+  arrange(ResearchID, ChildStudyID, Condition, WordGroup, Time) %>% 
   mutate(
     ChildStudyFactor = factor(ChildStudyID),
-    WordGroupFactor = factor(WordGroup),
+    TargetWordFactor = factor(TargetWord),
     model_weights = 1 / elogit_wts
-  ) |> 
-  group_by(ResearchID, ChildStudyID, Condition, WordGroup) |> 
+  ) %>% 
+  group_by(ResearchID, ChildStudyID, Condition, WordGroup) %>% 
   mutate(
     ar_starts = Time == min(Time)
-  ) |> 
+  ) %>% 
   ungroup()
 
 m1 <- bam(
   elogit ~ Condition + 
     s(Time) + 
     s(Time, by = Condition_Diff) + 
-    s(WordGroupFactor, bs = "re") +
-    s(WordGroupFactor, bs = "re", by = Condition_Diff) +
+    s(TargetWordFactor, bs = "re") +
+    s(TargetWordFactor, bs = "re", by = Condition_Diff) + 
     s(Time, ChildStudyFactor, bs = "fs", m = 1) + 
     s(Time, ChildStudyFactor, bs = "fs", m = 1, by = Condition_Diff), 
-  method = "REML",
+  method = "fREML",
+  discrete=TRUE,
+  family="scat",
   data = data_tp1_th
 )
 summary(m1)
@@ -181,17 +183,19 @@ m2 <- bam(
   elogit ~ Condition + 
     s(Time) + 
     s(Time, by = Condition_Diff) + 
-    s(WordGroupFactor, bs = "re") +
-    s(WordGroupFactor, bs = "re", by = Condition_Diff) +
+    s(TargetWordFactor, bs = "re") +
+    s(TargetWordFactor, bs = "re", by = Condition_Diff) +
     s(Time, ChildStudyFactor, bs = "fs", m = 1) + 
     s(Time, ChildStudyFactor, bs = "fs", m = 1, by = Condition_Diff), 
-  data = data_tp1_th, 
   weights = data_tp1_th$model_weights, 
-  method = "REML"
+  method = "fREML",
+  discrete = TRUE,
+  family="scat",
+  data = data_tp1_th
 )
 summary(m2)
 
-itsadug::compareML(m1, m2)
+itsadug::compareML(m1, m2) # model with re-weighted data performs worse
 ```
 
 Let's also do the rho thing. I already sort the data to have increasing time values within a child x condition x word group.
@@ -203,18 +207,20 @@ m3 <- bam(
   elogit ~ Condition + 
     s(Time) + 
     s(Time, by = Condition_Diff) + 
-    s(WordGroupFactor, bs = "re") +
-    s(WordGroupFactor, bs = "re", by = Condition_Diff) +
+    s(TargetWordFactor, bs = "re") +
+    s(TargetWordFactor, bs = "re", by = Condition_Diff) +
     s(Time, ChildStudyFactor, bs = "fs", m = 1) + 
     s(Time, ChildStudyFactor, bs = "fs", m = 1, by = Condition_Diff), 
-  data = data_tp1_th, 
   weights = data_tp1_th$model_weights, 
+  method = "fREML",
+  discrete = TRUE,
+  family="scat",
   rho = rho, 
   AR.start = data_tp1_th$ar_starts,
-  method = "REML"
+  data = data_tp1_th
 )
 
-itsadug::compareML(m2, m3)
+itsadug::compareML(m1, m3)
 ```
 
 ### Residuals
@@ -236,8 +242,7 @@ summary(m3r)
 hist(m3r)
 ```
 
-What this autocorrelation does to the average residual here is bonkers. Maybe we
-should not use it?
+Distribution of average residuals is substantially improved after combining AR1 + scaled t-distribution in model. 
 
 
 ### Some plots
@@ -246,14 +251,14 @@ should not use it?
 gratia::draw(m1)
 gratia::draw(m2)
 
-gratia::compare_smooths(m1, m2) |> 
+gratia::compare_smooths(m1, m2) %>% 
   gratia::draw()
 
 gratia::smooth_estimates(
   m2, 
   c("s(Time)", "s(Time):Condition_Diffreal")
-) |>
-  gratia::add_confint() |> 
+) %>%
+  gratia::add_confint() %>% 
   ggplot() + 
     aes(x = Time, y = est) + 
   geom_line() +
