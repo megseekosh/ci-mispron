@@ -25,8 +25,6 @@ knitr::opts_chunk$set(message=FALSE,
                       echo=FALSE)
 ```
 
-
-
 ```{r, read in data}
 all_kids <- read.csv('./data/ha_matched_kids.csv') %>% # contains the N=38 kids who are hearing age-matched
   filter(Condition!='nonsense') %>% # only going to look at difference between MP and real 
@@ -330,7 +328,7 @@ groupcond_model_summary <- readRDS("../hearingage_matched_models/group-cond-mode
 m <- gamtabs(groupcond_model,
         caption = "Model summary predicting the difference between proportion of looks to the familiar image by word condition and hearing status.",
         label="2-by-2-model-summary",
-        pnames = c("Intercept", "Typical Hearing", "Typical Hearing: Correct", "Cochlear Implant: Correct"), # the parametric terms
+        pnames = c("Intercept (Cochlear Implant: Mispronunciation)", "Typical Hearing", "Typical Hearing: Correct", "Cochlear Implant: Correct"), # the parametric terms
         snames = c("s(Time)","s(Time,Cochlear Implant)","s(Time,Typical Hearing)",
                    "s(Time,Typical Hearing; Correct)","s(Time,Cochlear Implant; Correct)",
                    "s(Time,Child)","s(Time,Item)","s(Time,Observation)"))
@@ -754,6 +752,10 @@ ci_kids_plot %>%
       annotate(geom="text", x=900, y=-1.2, size=4, label="Mispronunciation",color='turquoise4')
 ```
 
+```{r, read in all TH kids}
+th_kids <- looks %>% filter(Group!='CochlearImplant')
+```
+
 ```{r, explore s-shaped processing, fig.cap="Raw response trajectories and audio stimulus for proportion of looks to image of soup for children with TH. Children were divided into tertiles by chronological age."}
 
 th_kids <- th_kids %>%
@@ -790,6 +792,7 @@ shoup <- th_kids %>%
 ```
 
 # Appendices
+
 ```{r, audiological-info}
 # get a list of research IDs of kids who were matched to TH; N=15
 matched_cis <- all_kids2 %>%
@@ -846,12 +849,15 @@ diff_model <- readRDS("../hearingage_matched_models/diff-model.Rdata")
 
 gamtabs(diff_model,
         caption = "Predicting the degree of mispronunciation sensitivity by hearing status.",
-        #label="Table 1",
-        pnames = c("Intercept", "Typical Hearing"), # the parametric terms
+        pnames = c("Intercept (Cochlear Implant: Mispronunciation)", "Typical Hearing"), # the parametric terms
         snames = c("s(Time)",
-                   "s(Time,Cochlear Implant)","s(Time,Typical Hearing)",
-                   "s(Time,Correct)","s(Time,Typical Hearing; Correct)",
-                   "s(Time,Child)","s(Time,Item)","s(Time,Observation)")
+                   "s(Time,Cochlear Implant)",
+                   "s(Time,Typical Hearing)",
+                   "s(Time,Cochlear Implant Correct - Cochlear Implant Mispronunciation)",
+                   "s(Time,Typical Hearing Difference - Cochlear Implant Difference)",
+                   "s(Time,Child)",
+                   "s(Time,Item)",
+                   "s(Time,Observation)")
         )
 ```
 
@@ -860,9 +866,10 @@ gfta_model_CI <- readRDS("../all_child_models/ci/gfta-model-ci.Rdata")
 
 gamtabs(gfta_model_CI,
         caption = "Predicting the degree of mispronunciation sensitivity by phonetic accuracy score.",
-        pnames = c("Intercept", "Correct"), # the parametric terms
+        pnames = c("Intercept (Mispronunciation)", "Correct"), # the parametric terms
         snames = c("s(Time)",
                    "s(Time,Correct)",
+                   "s(Age)",
                    "te(Time,Age; Correct)",
                    "te(Time,Phonetic Accuracy; Correct)",
                    "s(Time,Child)",

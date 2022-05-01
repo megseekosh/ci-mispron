@@ -78,7 +78,7 @@
 
 \title{CI mispronunciation sensitivity: results}
 \author{Meg Cychosz}
-\date{10 April 2022}
+\date{01 May 2022}
 
 \begin{document}
 \maketitle
@@ -92,7 +92,7 @@
 Hearing Status & Girls, Boys & Chronological Age: months & Hearing Age: months & Maternal Education Level & EVT-2 GSV Scores & EVT-2 Stan. Scores\\
 \midrule
 CochlearImplant & 13 , 6 & 56.32 ( 6.71 ) 44 - 66 & 44.47 ( 8.69 ) 29 - 56 & 6.26 ( 0.56 ) & 134.84 ( 12 ) 112 - 159 & 102.63 ( 13.37 ) 84 - 131\\
-NormalHearing & 13 , 6 & 45.68 ( 7.56 ) 36 - 57 & 45.68 ( 7.56 ) 36 - 57 & 6.16 ( 0.6 ) & 133 ( 11.24 ) 117 - 150 & 114.74 ( 10.57 ) 98 - 134\\
+NormalHearing & 13 , 6 & 45.47 ( 7.46 ) 36 - 57 & 45.47 ( 7.46 ) 36 - 57 & 6.05 ( 0.62 ) & 132.68 ( 10.88 ) 117 - 150 & 114.58 ( 10.38 ) 98 - 134\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -103,43 +103,43 @@ NormalHearing & 13 , 6 & 45.68 ( 7.56 ) 36 - 57 & 45.68 ( 7.56 ) 36 - 57 & 6.16 
 \hypertarget{analysis-plan}{%
 \subsection{Analysis plan}\label{analysis-plan}}
 
-Here we evaluate the mispronunciation sensitivity of children with CIs in comparison to their hearing age- and vocabulary size-matched peers. The outcome variable is the proportion of looks to the familiar photo versus the unfamiliar photo, over time (300-1,800 ms after target word onset), which we modeled using Generalized Additive Mixed Models (GAMMs). GAMMs have become an important tool to model time series data, such as eyetracking trajectories, because they can incorporate nonlinear relationships between variables such as time, response, and relevant covariates (i.e., effects of group and/or condition) (rijChildrenEyeGaze2016;zahnerAlignmentF0Peak). GAMMs are composed of both (fixed) \emph{parametric} terms that model static relationships between two variables, as is common in generalized linear modeling, as well as \emph{smooth} terms which model nonlinear effects. Parametric terms can be interpreted from model summaries, as in traditional regression, but smooth terms must be interpreted visually. For an introduction to GAMMs, readers are encouraged to consult tutorials in Wieling (2017) and Sóskuthy (2021), as well as the more comprehensive Wood (2017).
+Here we evaluate the mispronunciation sensitivity of children with CIs in comparison to their hearing age- and vocabulary size-matched peers. The outcome variable is the proportion of looks to the familiar photo versus the unfamiliar photo, over time (300-1,800 ms after target word onset), which we modeled using Generalized Additive Mixed Models (GAMMs). GAMMs have become an important tool to model time series data, such as eyetracking trajectories, because they can incorporate nonlinear relationships between variables such as time, response, and relevant covariates (i.e., effects of group and/or condition) (rijChildrenEyeGaze2016;zahnerAlignmentF0Peak). GAMMs are composed of (fixed) \emph{parametric} terms that model static relationships between two variables, as is common in generalized linear modeling, as well as \emph{smooth} terms which model nonlinear effects. Parametric terms can be interpreted from model summaries, as in traditional regression, but smooth terms must be interpreted visually. For an introduction to GAMMs, readers are encouraged to consult tutorials in Wieling (2017) and Sóskuthy (2021), as well as the more comprehensive Wood (2017).
 
 GAMMs also allow for autocorrelation between observations to be factored into the modeling. Incorporating autocorrelation is of particular importance to eyetracking data where we anticipate large amounts of within-trial correlation between measurements over time: the area where the child is looking at 500ms is highly correlated with where they are looking at 550ms. As such, GAMMs are a significant improvement upon other polynomial regression models common in time series analysis, such as Growth Curve Models (GCMs). GCMs cannot factor in this inherent correlational structure within the data and, as a result, recent work has shown that they result in inflated Type I error rates (Huang \& Snedeker, 2020).
 
-The current data were analyzed in the RStudio computing environment (version 1.4.1717; RStudio). All computing and statistical analyses are included in the GitHub repository affiliated with this project {[}INCLUDE{]}. Visualizations were made using the ggplot2 and cowplot packages. Modeling was conducted and presented using the mgcv, itsadug, and tidymv packages. For all modeling, the proportion of children's looks to the familiar image versus the unfamiliar image was calculated for each frame (every 50 ms) and transformed to empirical logit (elog) (Barr, 2008). Random effects (``factor smooths'' in GAMMs) included by-participant, by-observation (first, second, or third visit to the lab), and by-item trajectories to model variability stemming from individual children or lexical items, as well as to take into account the repeated observations from some children at two different ages. Model criticism, to ensure assumptions were met and avoid overfitting, was conducted using the gam.check() function; when necessary, the basis function number (\emph{k} or knots) was increased.
+The current data were analyzed in the RStudio computing environment (version 1.4.1717; RStudio). All computing and statistical analyses are included in the GitHub repository affiliated with this project \textless github.com/megseekosh/ci-mispron\textgreater. Visualizations were made using the ggplot2 and cowplot packages. Modeling was conducted and presented using the mgcv, itsadug, and tidymv packages. For all modeling, the proportion of children's looks to the familiar image versus the unfamiliar image was calculated for each frame (every 50 ms) and transformed to empirical logit (elog) (Barr, 2008). Random effects (``factor smooths'' in GAMMs) included by-participant, by-observation (first, second, or third visit to the lab), and by-item trajectories. These factor smooths modeled variability stemming from individual children and lexical items, and took into account the repeated observations from some children at two different ages. Model criticism, To ensure assumptions were met and to avoid overfitting, model criticism was conducted using the gam.check() function; when necessary, the basis function number (\emph{k} or knots) was increased.
 
-As is common in eye-tracking data, the response data were distributed with heavy tails. Consequently, all models were fit using a scaled t model using the ``scat'' link function which substantially improved data distribution (woodSmoothingParameterModel2016). Finally, for each model, autocorrelation between model residuals was calculated; all models showed high amounts of autocorrelation. These dependencies were factored into the modeling by fitting an autoregressive error model (AR(1)) that modeled the degree of autocorrelation (\emph{rho}) between timepoints in each trial. Subsequent model inspection demonstrated that specifying this autocorrelation value in the model sufficiently factored out autocorrelation between residuals (Wieling, 2017).
+As is common in eye-tracking data, the response data were distributed with heavy tails. Consequently, all models were fit using a scaled t model using the ``scat'' link function, which substantially improved data distribution (woodSmoothingParameterModel2016). Finally, for each model, autocorrelation between model residuals was calculated; all models showed high amounts of autocorrelation. These dependencies were factored into the modeling by fitting an autoregressive error model (AR(1)) that modeled the degree of autocorrelation (\emph{rho}) between timepoints in each trial. Subsequent model inspection demonstrated that specifying this autocorrelation value in the model sufficiently factored out autocorrelation between residuals (Wieling, 2017).
 
 \hypertarget{evaluating-the-effect-of-phonetic-detail-on-mispronunciation-sensitivity}{%
 \subsection{Evaluating the effect of phonetic detail on mispronunciation sensitivity}\label{evaluating-the-effect-of-phonetic-detail-on-mispronunciation-sensitivity}}
 
-To evaluate how access to fine, phonetic detail may affect mispronunciation sensitivity, a series of GAMMs were fit comparing children with CIs and their hearing age- and vocabulary size-matched peers. \textbf{Condition} (Correct Pronunciation vs.~Mispronunciation) was contrast-coded to facilitate model interpretation and the 2x2 relationship of \textbf{Group} (Children with CIs vs.~NH) and \textbf{Condition} was modeled using ordered factors. A model with parametric and smooth terms for \textbf{Group} and \textbf{Condition} improved upon a \textbf{Condition}-only model, suggesting that children with CIs and TH responded differently to correct- versus mis-pronunciations.
+To evaluate how access to fine, phonetic detail may affect mispronunciation sensitivity, a series of GAMMs were fit comparing children with CIs and their hearing age- and vocabulary size-matched TH peers. \textbf{Condition} (Correct Pronunciation vs.~Mispronunciation) was contrast-coded to facilitate model interpretation and the 2x2 relationship of \textbf{Group} (Children with CIs vs.~TH) and \textbf{Condition} was modeled using ordered factors. A model with parametric and smooth terms for \textbf{Group} and \textbf{Condition} improved upon a \textbf{Condition}-only model, suggesting that children with CIs and TH responded differently to correct- versus mis-pronunciations.
 
-To statistically evaluate the source of the \textbf{Group} effect (i.e., stemming from overall vs.~time-varying response to the stimuli), another model was fit that included parametric terms for \textbf{Group}, and the ordered factors of \emph{Correct Pronunciation} for children with CIs and \emph{Correct Pronunciation} for children with TH (Wieling, 2017). These parametric effects modeled the constant effect (the intercept) of the covariates upon the response variable. Smooth model terms included non-linear effects of \textbf{Time} and \textbf{Time} by \textbf{Group}. The latter allowed us to model the non-linear difference between the two different groups' responses to mispronunciations. Finally, the model included difference smooths which allowed us to separately model how each hearing group responded to correct- versus mis-pronunciations, over time. See Table \ref{tab:2-by-2-model-summary} for model summary.
+To statistically evaluate the source of the \textbf{Group} effect (i.e., stemming from overall vs.~time-varying response to the stimuli), another model was fit that included parametric terms for \textbf{Group}, and the ordered factors of \emph{Correct Pronunciation} for children with CIs and \emph{Correct Pronunciation} for children with TH (Wieling, 2017). These parametric effects modeled the constant effect (the intercept) of the covariates upon the response variable. Smooth model terms included non-linear effects of \textbf{Time} and \textbf{Time} by \textbf{Group}. The latter allowed us to model the non-linear difference between the two different groups' responses to mispronunciations. Finally, the model included difference smooths, which allowed us to separately model how each hearing group responded to correct- versus mis-pronunciations, over time. See Table \ref{tab:2-by-2-model-summary} for model summary.
 
 \begin{verbatim}
 ## % latex table generated in R 4.0.2 by xtable 1.8-4 package
-## % Sun Apr 10 13:39:50 2022
+## % Sun May  1 13:13:34 2022
 ## \begin{table}[ht]
 ## \centering
 ## \begin{tabular}{lrrrr}
 ##    \hline
 ## A. parametric coefficients & Estimate & Std. Error & t-value & p-value \\ 
-##   Intercept & 0.2502 & 0.2123 & 1.1787 & 0.2386 \\ 
-##   Typical Hearing & -0.3089 & 0.1811 & -1.7052 & 0.0882 \\ 
-##   Typical Hearing: Correct & 1.2487 & 0.2423 & 5.1541 & $<$ 0.0001 \\ 
-##   Cochlear Implant: Correct & 0.7803 & 0.2423 & 3.2207 & 0.0013 \\ 
+##   Intercept (Cochlear Implant: Mispronunciation) & 0.2662 & 0.1920 & 1.3868 & 0.1655 \\ 
+##   Typical Hearing & -0.3259 & 0.1924 & -1.6932 & 0.0904 \\ 
+##   Typical Hearing: Correct & 1.1826 & 0.2259 & 5.2363 & $<$ 0.0001 \\ 
+##   Cochlear Implant: Correct & 0.6789 & 0.2252 & 3.0138 & 0.0026 \\ 
 ##    \hline
 ## B. smooth terms & edf & Ref.df & F-value & p-value \\ 
-##   s(Time) & 1.0001 & 1.0001 & 1.6251 & 0.2024 \\ 
-##   s(Time,Cochlear Implant) & 0.0001 & 0.0002 & 0.0053 & 0.9992 \\ 
-##   s(Time,Typical Hearing) & 3.0589 & 3.5683 & 2.3244 & 0.0616 \\ 
-##   s(Time,Typical Hearing; Correct) & 4.6594 & 5.5346 & 14.0315 & $<$ 0.0001 \\ 
-##   s(Time,Cochlear Implant; Correct) & 3.6881 & 4.3544 & 10.0320 & $<$ 0.0001 \\ 
-##   s(Time,Child) & 153.7298 & 340.0000 & 6.8563 & $<$ 0.0001 \\ 
-##   s(Time,Item) & 52.3324 & 106.0000 & 9.4346 & $<$ 0.0001 \\ 
-##   s(Time,Observation) & 0.1996 & 26.0000 & 0.0078 & 0.0020 \\ 
+##   s(Time) & 0.0002 & 0.0004 & 755.4057 & 0.5803 \\ 
+##   s(Time,Cochlear Implant) & 1.0001 & 1.0002 & 2.6265 & 0.1055 \\ 
+##   s(Time,Typical Hearing) & 3.2556 & 4.1432 & 1.3554 & 0.2429 \\ 
+##   s(Time,Typical Hearing; Correct) & 5.0601 & 6.3159 & 8.6538 & $<$ 0.0001 \\ 
+##   s(Time,Cochlear Implant; Correct) & 3.7598 & 4.8315 & 7.2809 & $<$ 0.0001 \\ 
+##   s(Time,Child) & 52.1753 & 341.0000 & 0.4680 & $<$ 0.0001 \\ 
+##   s(Time,Item) & 25.5375 & 108.0000 & 0.6854 & $<$ 0.0001 \\ 
+##   s(Time,Observation) & 0.0010 & 27.0000 & 0.1394 & $<$ 0.0001 \\ 
 ##    \hline
 ## \end{tabular}
 ## \caption{Model summary predicting the difference between proportion of looks to the familiar image by word condition and hearing status.} 
@@ -147,7 +147,7 @@ To statistically evaluate the source of the \textbf{Group} effect (i.e., stemmin
 ## \end{table}
 \end{verbatim}
 
-First we ask: are both children with CIs and their TH matches sensitive to mispronunciations? Parametric effects in the model summary show that there are, overall, significantly more looks to the familiar photo for \emph{Correct Pronunciation} trials than \emph{Mispronunciation} trials, for both children with CIs and TH (CI Est.=0.78, p\textless.001; TH Est.=1.25, p\textless.001). Interpretation of the non-linear smooths shows that there are significant, non-linear differences in looks to the familiar image between correct- and mis-pronunciations for children with CIs (smooth of \textbf{Time} by the ordered \textbf{Cochlear Implant; Correct}) and children with TH (smooth of \textbf{Time} by the ordered \textbf{Typical Hearing; Correct}) (Figure \ref{fig:2x2-plot}). Thus, both children with CIs and TH are sensitive to mispronunciations.
+In the first part of the results, we ask: are both children with CIs and their TH matches sensitive to mispronunciations? Parametric effects in the model summary show that there are, overall, significantly more looks to the familiar photo for \emph{Correct Pronunciation} trials than \emph{Mispronunciation} trials, for both children with CIs and TH (CI Est.=0.68, p\textless.001; TH Est.=1.18, p\textless.001). Interpretation of the non-linear smooths shows that there are significant, non-linear differences in looks to the familiar image between correct- and mis-pronunciations for children with CIs (smooth of \textbf{Time} by the ordered \textbf{Cochlear Implant; Correct}) and children with TH (smooth of \textbf{Time} by the ordered \textbf{Typical Hearing; Correct}) (Figure \ref{fig:2x2-plot}). Thus, both children with CIs and TH are sensitive to mispronunciations.
 
 \begin{figure}
 \centering
@@ -269,24 +269,24 @@ Participant & Matched to child with TH? & Chronological age & Age at hearing los
 
 \begin{verbatim}
 ## % latex table generated in R 4.0.2 by xtable 1.8-4 package
-## % Sun Apr 10 13:41:08 2022
+## % Sun May  1 13:14:05 2022
 ## \begin{table}[ht]
 ## \centering
 ## \begin{tabular}{lrrrr}
 ##    \hline
 ## A. parametric coefficients & Estimate & Std. Error & t-value & p-value \\ 
-##   Intercept & 0.2502 & 0.2123 & 1.1785 & 0.2386 \\ 
-##   Typical Hearing & -0.3087 & 0.1811 & -1.7046 & 0.0883 \\ 
+##   Intercept (Cochlear Implant: Mispronunciation) & 0.2560 & 0.1922 & 1.3325 & 0.1827 \\ 
+##   Typical Hearing & -0.3070 & 0.1918 & -1.6007 & 0.1095 \\ 
 ##    \hline
 ## B. smooth terms & edf & Ref.df & F-value & p-value \\ 
-##   s(Time) & 1.0001 & 1.0002 & 1.4752 & 0.2246 \\ 
-##   s(Time,Cochlear Implant) & 0.0001 & 0.0002 & 0.0001 & 0.5000 \\ 
-##   s(Time,Typical Hearing) & 2.8603 & 3.3236 & 2.2113 & 0.0777 \\ 
-##   s(Time,Correct) & 5.0223 & 5.6621 & 9.9809 & $<$ 0.0001 \\ 
-##   s(Time,Typical Hearing; Correct) & 4.6960 & 5.4864 & 17.0692 & $<$ 0.0001 \\ 
-##   s(Time,Child) & 153.4484 & 340.0000 & 6.8381 & $<$ 0.0001 \\ 
-##   s(Time,Item) & 52.0826 & 106.0000 & 9.4253 & $<$ 0.0001 \\ 
-##   s(Time,Observation) & 0.5687 & 26.0000 & 0.0229 & 0.0015 \\ 
+##   s(Time) & 1.0826 & 1.5820 & 6.3116 & 0.0212 \\ 
+##   s(Time,Cochlear Implant) & 1.0001 & 1.0002 & 0.5928 & 0.4414 \\ 
+##   s(Time,Typical Hearing) & 1.0039 & 1.0072 & 5.5500 & 0.0182 \\ 
+##   s(Time,Cochlear Implant Correct - Cochlear Implant Mispronunciation) & 6.0112 & 7.2081 & 8.2213 & $<$ 0.0001 \\ 
+##   s(Time,Typical Hearing Difference - Cochlear Implant Difference) & 2.0002 & 2.0004 & 5.3745 & 0.0046 \\ 
+##   s(Time,Child) & 52.1398 & 340.0000 & 0.4644 & $<$ 0.0001 \\ 
+##   s(Time,Item) & 25.7681 & 106.0000 & 0.7128 & $<$ 0.0001 \\ 
+##   s(Time,Observation) & 0.0014 & 26.0000 & 0.0003 & $<$ 0.0001 \\ 
 ##    \hline
 ## \end{tabular}
 ## \caption{Predicting the degree of mispronunciation sensitivity by hearing status.} 
@@ -296,24 +296,25 @@ Participant & Matched to child with TH? & Chronological age & Age at hearing los
 
 \begin{verbatim}
 ## % latex table generated in R 4.0.2 by xtable 1.8-4 package
-## % Sun Apr 10 13:41:18 2022
+## % Sun May  1 13:14:13 2022
 ## \begin{table}[ht]
 ## \centering
 ## \begin{tabular}{lrrrr}
 ##    \hline
 ## A. parametric coefficients & Estimate & Std. Error & t-value & p-value \\ 
-##   Intercept & 0.1471 & 0.1975 & 0.7447 & 0.4564 \\ 
-##   Correct & 0.7092 & 0.1913 & 3.7079 & 0.0002 \\ 
+##   Intercept (Mispronunciation) & 0.0835 & 0.1704 & 0.4900 & 0.6241 \\ 
+##   Correct & 0.7110 & 0.1915 & 3.7131 & 0.0002 \\ 
 ##    \hline
 ## B. smooth terms & edf & Ref.df & F-value & p-value \\ 
-##   s(Time) & 0.0005 & 9.0000 & 0.0000 & 0.4432 \\ 
-##   s(Time,Correct) & 3.1499 & 9.0000 & 2.3343 & $<$ 0.0001 \\ 
-##   te(Time,Age; Correct) & 3.1636 & 24.0000 & 0.3746 & 0.0046 \\ 
-##   te(Time,Phonetic Accuracy; Correct) & 3.0650 & 24.0000 & 0.4550 & 0.0011 \\ 
-##   s(Time,Child) & 49.3793 & 296.0000 & 0.2814 & $<$ 0.0001 \\ 
-##   s(Time,Item) & 13.2066 & 107.0000 & 0.2562 & 0.0007 \\ 
-##   s(Time,Observation) & 1.0031 & 27.0000 & 0.0916 & 0.0025 \\ 
-##   s(Time,Child; Corrrect) & 0.0054 & 296.0000 & 0.0007 & $<$ 0.0001 \\ 
+##   s(Time) & 0.0006 & 9.0000 & 0.0001 & 0.0413 \\ 
+##   s(Time,Correct) & 3.1503 & 9.0000 & 2.3435 & $<$ 0.0001 \\ 
+##   s(Age) & 0.6289 & 9.0000 & 0.1893 & 0.0081 \\ 
+##   te(Time,Age; Correct) & 3.1548 & 24.0000 & 0.3734 & 0.0049 \\ 
+##   te(Time,Phonetic Accuracy; Correct) & 3.0315 & 24.0000 & 0.4423 & 0.0013 \\ 
+##   s(Time,Child) & 48.6931 & 296.0000 & 0.2923 & $<$ 0.0001 \\ 
+##   s(Time,Item) & 12.9259 & 106.0000 & 0.2786 & 0.0002 \\ 
+##   s(Time,Observation) & 0.5166 & 26.0000 & 0.0299 & 0.0223 \\ 
+##   s(Time,Child; Correct) & 0.0027 & 296.0000 & 0.0255 & $<$ 0.0001 \\ 
 ##    \hline
 ## \end{tabular}
 ## \caption{Predicting the degree of mispronunciation sensitivity by phonetic accuracy score.} 
