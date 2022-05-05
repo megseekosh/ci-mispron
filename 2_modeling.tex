@@ -78,7 +78,7 @@
 
 \title{CI mispronunciation sensitivity: results}
 \author{Meg Cychosz}
-\date{01 May 2022}
+\date{05 May 2022}
 
 \begin{document}
 \maketitle
@@ -103,13 +103,13 @@ NormalHearing & 13 , 6 & 45.47 ( 7.46 ) 36 - 57 & 45.47 ( 7.46 ) 36 - 57 & 6.05 
 \hypertarget{analysis-plan}{%
 \subsection{Analysis plan}\label{analysis-plan}}
 
-Here we evaluate the mispronunciation sensitivity of children with CIs in comparison to their hearing age- and vocabulary size-matched peers. The outcome variable is the proportion of looks to the familiar photo versus the unfamiliar photo, over time (300-1,800 ms after target word onset), which we modeled using Generalized Additive Mixed Models (GAMMs). GAMMs have become an important tool to model time series data, such as eyetracking trajectories, because they can incorporate nonlinear relationships between variables such as time, response, and relevant covariates (i.e., effects of group and/or condition) (rijChildrenEyeGaze2016;zahnerAlignmentF0Peak). GAMMs are composed of (fixed) \emph{parametric} terms that model static relationships between two variables, as is common in generalized linear modeling, as well as \emph{smooth} terms which model nonlinear effects. Parametric terms can be interpreted from model summaries, as in traditional regression, but smooth terms must be interpreted visually. For an introduction to GAMMs, readers are encouraged to consult tutorials in Wieling (2017) and Sóskuthy (2021), as well as the more comprehensive Wood (2017).
+We evaluate the mispronunciation sensitivity of children with CIs in comparison to their hearing age- and vocabulary size-matched peers. The outcome variable is the proportion of looks to the familiar object versus the unfamiliar object, over time (300--1,800 ms after target word onset), which we modeled using Generalized Additive Mixed Models (GAMMs). GAMMs have become an important tool to model time series data, such as eyetracking trajectories, because they can incorporate nonlinear relationships between variables such as time, response, and relevant covariates (i.e., effects of group and/or condition) (rijChildrenEyeGaze2016;zahnerAlignmentF0Peak). GAMMs are composed of (fixed) \emph{parametric} terms that model static relationships between two variables, as is common in generalized linear modeling, and \emph{smooth} terms that model nonlinear effects by using penalized basis functions (smoothing splines). Parametric terms can be interpreted from model summaries, as in traditional regression, but smooth terms must be interpreted visually. Wieling (2017) and Sóskuthy (2021) provide tutorials for GAMMs in language research and Wood (2017) provides a comprehensive textbook treatment of the approach.
 
-GAMMs also allow for autocorrelation between observations to be factored into the modeling. Incorporating autocorrelation is of particular importance to eyetracking data where we anticipate large amounts of within-trial correlation between measurements over time: the area where the child is looking at 500ms is highly correlated with where they are looking at 550ms. As such, GAMMs are a significant improvement upon other polynomial regression models common in time series analysis, such as Growth Curve Models (GCMs). GCMs cannot factor in this inherent correlational structure within the data and, as a result, recent work has shown that they result in inflated Type I error rates (Huang \& Snedeker, 2020).
+GAMMs also allow for autocorrelation between observations to be factored into the modeling. Incorporating autocorrelation is of particular importance to eyetracking data where we anticipate large amounts of within-trial correlation between measurements over time: the area where the child is looking at 500ms is highly correlated with where they are looking at 550ms. As such, GAMMs are a significant improvement upon other polynomial regression models common in time series analysis, such as Growth Curve Models (GCMs). The standard approach for estimating GCMs cannot factor in this inherent correlational structure within the data and, as a result, recent work has shown that they result in inflated Type I error rates (Huang \& Snedeker, 2020).
 
-The current data were analyzed in the RStudio computing environment (version 1.4.1717; RStudio). All computing and statistical analyses are included in the GitHub repository affiliated with this project \textless github.com/megseekosh/ci-mispron\textgreater. Visualizations were made using the ggplot2 and cowplot packages. Modeling was conducted and presented using the mgcv, itsadug, and tidymv packages. For all modeling, the proportion of children's looks to the familiar image versus the unfamiliar image was calculated for each frame (every 50 ms) and transformed to empirical logit (elog) (Barr, 2008). Random effects (``factor smooths'' in GAMMs) included by-participant, by-observation (first, second, or third visit to the lab), and by-item trajectories. These factor smooths modeled variability stemming from individual children and lexical items, and took into account the repeated observations from some children at two different ages. Model criticism, To ensure assumptions were met and to avoid overfitting, model criticism was conducted using the gam.check() function; when necessary, the basis function number (\emph{k} or knots) was increased.
+The current data were analyzed in the RStudio computing environment (R version 4.0.2; Rcite). All computing and statistical analyses are included in the GitHub repository affiliated with this project \textless github.com/megseekosh/ci-mispron\textgreater. Visualizations were made using the ggplot2 and cowplot packages. Modeling was conducted and presented using the mgcv, itsadug, and tidymv packages. For all modeling, the proportion of children's looks to the familiar object versus the unfamiliar object was calculated for each frame (every 50 ms) and transformed to empirical logit (elog), or the log-odds of looking to the familiar object at each sample (Barr, 2008). Random effects (``factor smooths'' in GAMMs) included by-participant, by-observation (first {[}at age 3{]}, second {[}at age 4{]}, or third {[}at age 5{]} visit to the lab), and by-item trajectories. These factor smooths modeled variability stemming from individual children and lexical items, and took into account the repeated observations from some children at two different ages. To ensure assumptions were met and to avoid overfitting, model criticism was conducted using the gam.check() function; when necessary, the basis function number (\emph{k} or knots) was increased.
 
-As is common in eye-tracking data, the response data were distributed with heavy tails. Consequently, all models were fit using a scaled t model using the ``scat'' link function, which substantially improved data distribution (woodSmoothingParameterModel2016). Finally, for each model, autocorrelation between model residuals was calculated; all models showed high amounts of autocorrelation. These dependencies were factored into the modeling by fitting an autoregressive error model (AR(1)) that modeled the degree of autocorrelation (\emph{rho}) between timepoints in each trial. Subsequent model inspection demonstrated that specifying this autocorrelation value in the model sufficiently factored out autocorrelation between residuals (Wieling, 2017).
+As is common in eye-tracking data, the response data were distributed with heavy tails. Consequently, all models were fit using a scaled-t model using the ``scat'' link function, which substantially improved data distribution (woodSmoothingParameterModel2016). Finally, for each model, autocorrelation between model residuals was calculated; all models showed high amounts of autocorrelation. These dependencies were factored into the modeling by fitting an autoregressive error model (AR(1)) that modeled the degree of autocorrelation (\emph{rho}) between timepoints in each trial. Subsequent model inspection demonstrated that specifying this autocorrelation value in the model sufficiently factored out autocorrelation between residuals (Wieling, 2017).
 
 \hypertarget{evaluating-the-effect-of-phonetic-detail-on-mispronunciation-sensitivity}{%
 \subsection{Evaluating the effect of phonetic detail on mispronunciation sensitivity}\label{evaluating-the-effect-of-phonetic-detail-on-mispronunciation-sensitivity}}
@@ -120,7 +120,7 @@ To statistically evaluate the source of the \textbf{Group} effect (i.e., stemmin
 
 \begin{verbatim}
 ## % latex table generated in R 4.0.2 by xtable 1.8-4 package
-## % Sun May  1 13:13:34 2022
+## % Thu May  5 15:58:03 2022
 ## \begin{table}[ht]
 ## \centering
 ## \begin{tabular}{lrrrr}
@@ -142,17 +142,17 @@ To statistically evaluate the source of the \textbf{Group} effect (i.e., stemmin
 ##   s(Time,Observation) & 0.0010 & 27.0000 & 0.1394 & $<$ 0.0001 \\ 
 ##    \hline
 ## \end{tabular}
-## \caption{Model summary predicting the difference between proportion of looks to the familiar image by word condition and hearing status.} 
+## \caption{Model summary predicting the difference between proportion of looks to the familiar object by word condition and hearing status.} 
 ## \label{2-by-2-model-summary}
 ## \end{table}
 \end{verbatim}
 
-In the first part of the results, we ask: are both children with CIs and their TH matches sensitive to mispronunciations? Parametric effects in the model summary show that there are, overall, significantly more looks to the familiar photo for \emph{Correct Pronunciation} trials than \emph{Mispronunciation} trials, for both children with CIs and TH (CI Est.=0.68, p\textless.001; TH Est.=1.18, p\textless.001). Interpretation of the non-linear smooths shows that there are significant, non-linear differences in looks to the familiar image between correct- and mis-pronunciations for children with CIs (smooth of \textbf{Time} by the ordered \textbf{Cochlear Implant; Correct}) and children with TH (smooth of \textbf{Time} by the ordered \textbf{Typical Hearing; Correct}) (Figure \ref{fig:2x2-plot}). Thus, both children with CIs and TH are sensitive to mispronunciations.
+In the first part of the results, we ask: are both children with CIs and their TH matches sensitive to mispronunciations? Parametric effects in the model summary show that there are, overall, significantly more looks to the familiar photo for \emph{Correct Pronunciation} trials than \emph{Mispronunciation} trials, for both children with CIs and TH (CI logit Est.=0.68, p\textless.001, or proportion Est: 0.2106274; TH logit Est.=1.18, p\textless.001, or proportion Est: 0.30632). we interpret the smooth terms by first considering effective degrees of freedom (EDF) and the significance test for each smooth. The EDF indicates how much wiggliness there is in a smooth where EDF=1 indicates a linear relationship and a larger value indicates more wiggliness in the smooth. Interpretation of the non-linear smooths shows that there are significant, non-linear differences in looks to the familiar object between correct- and mis-pronunciations for children with CIs (smooth of \textbf{Time} by the ordered \textbf{Cochlear Implant; Correct}) and children with TH (smooth of \textbf{Time} by the ordered \textbf{Typical Hearing; Correct}) (Figure \ref{fig:2x2-plot}). Thus, both children with CIs and TH are sensitive to mispronunciations.
 
 \begin{figure}
 \centering
 \includegraphics{2_modeling_files/figure-latex/2x2-plot-1.pdf}
-\caption{\label{fig:2x2-plot}GAMM predictions for proportion of looks to familiar image, by word condition and hearing status. Shaded ribbons represent 95\% confidence intervals.}
+\caption{\label{fig:2x2-plot}Observed data and GAMM predictions for proportion of looks to familiar object, by word condition and hearing status. Fixations on the y-axis are plotted as the empirical logit values (elog). Shaded ribbons represent 95\% confidence intervals.}
 \end{figure}
 
 Nevertheless, the above modeling cannot tell us if these children with CIs are \emph{less} sensitive to mispronunciations than their TH peers; the modeling demonstrates only that both groups show sensitivity. To evaluate differences in mispronunciation sensitivity by group, another GAMM was fit, with a binary difference smooth, which allowed us to evaluate the \emph{difference} between smooths (Correct- vs.~Mis-pronunciations) for children with CIs and TH, over time. Model fit included parametric effects of \textbf{Group}, as well as smooths of \textbf{Time}, \textbf{Time} by \textbf{Group}, \textbf{Time} by \textbf{Condition}, and \textbf{Time} by the ordered variable of \textbf{Group} by \textbf{Condition} (to model the difference between real- and mis-pronunciations for each group). Model results are plotted in Figure \ref{fig:ci-th-facet-plot}; the model summary is included in supplementary materials. Overall, the model-estimated difference smooths show smaller differences between correct- and mis-pronunciations for the children with CIs---and that these differences take longer to manifest during online processing (left panel of Figure \ref{fig:ci-th-facet-plot}). Further inspection of the first model, as plotted in Figure \ref{fig:real-mp-facet-plot}, demonstrates why this is the case. The children with CIs and TH do not respond significantly differently to correct pronunciations: once vocabulary size and hearing age are controlled, both groups of children respond similarly to correctly-pronounced words. Instead, children with CIs---who are listening with a degraded speech signal via electric hearing---are less sensitive to \emph{mis}-pronunciations (Figure \ref{fig:real-mp-facet-plot}), resulting in smaller difference smooths between correct- and mis-pronunciations.
@@ -166,7 +166,7 @@ Nevertheless, the above modeling cannot tell us if these children with CIs are \
 \begin{figure}
 \centering
 \includegraphics{2_modeling_files/figure-latex/real-mp-facet-plot-1.pdf}
-\caption{\label{fig:real-mp-facet-plot}Difference smooths (GAMM predictions) by hearing status for correct pronunciations (L) and mispronunciations (R). The pink smooth represents the point when the smooth for children with CIs differs from children with TH (i.e., reliable effect of group): there is an effect of group upon mispronunciations, but not correct pronunciations. Shaded ribbons represent 95\% confidence intervals.}
+\caption{\label{fig:real-mp-facet-plot}Difference smooths (GAMM predictions) by hearing status for correct pronunciations and mispronunciations. The pink smooth represents the point when the smooth for children with TH differs from children with CIs (i.e., reliable effect of group): there is an effect of group upon mispronunciations (L plot: see also difference between yellow lines in Figure 1), but not correct pronunciations (R plot: see also difference between turquoise lines in Figure 1). Shaded ribbons represent 95\% confidence intervals.}
 \end{figure}
 
 \hypertarget{explaining-individual-differences-in-mispronunciation-sensitivity}{%
@@ -211,13 +211,13 @@ Once again, it is necessary to plot the model predictions in order to interpret 
 \begin{figure}
 \centering
 \includegraphics{2_modeling_files/figure-latex/CI-diff-plot-1.pdf}
-\caption{\label{fig:CI-diff-plot}Difference smooths (GAMM predictions) between correct- and mis-pronunciations for children with CIs, by standardized articulatory score. Pink smooths represent the point when correct- and mis-pronunciations smooths differ (i.e., reliable effect of condition). Children were divided into tertiles by score with smooths representing the median score for poorer (median score=57), better (72), and best (96) articulators.}
+\caption{\label{fig:CI-diff-plot}Difference smooths (GAMM predictions) between correct- and mis-pronunciations for children with CIs, by standardized articulatory score. Pink smooths represent the point when correct- and mis-pronunciations smooths differ (i.e., reliable effect of condition). Children were divided into tertiles by score with smooths representing the median score for children with poorer (median score=57), better (72), and best (96) articulatory scores.}
 \end{figure}
 
 \begin{figure}
 \centering
 \includegraphics{2_modeling_files/figure-latex/CI-raw-plot-1.pdf}
-\caption{\label{fig:CI-raw-plot}Raw response trajectories for proportion of looks to familiar image for children with CIs, by word condition and standardized articulatory score. Children were divided into tertiles by score: poorer (median score=57), better (72), and best (96) articulators.}
+\caption{\label{fig:CI-raw-plot}Raw response trajectories for proportion of looks to familiar object for children with CIs, by word condition and standardized articulatory score. Children were divided into tertiles by score: poorer (median score=57), better (72), and best (96) articulatory scores.}
 \end{figure}
 
 \hypertarget{appendices}{%
@@ -269,7 +269,7 @@ Participant & Matched to child with TH? & Chronological age & Age at hearing los
 
 \begin{verbatim}
 ## % latex table generated in R 4.0.2 by xtable 1.8-4 package
-## % Sun May  1 13:14:05 2022
+## % Thu May  5 15:58:14 2022
 ## \begin{table}[ht]
 ## \centering
 ## \begin{tabular}{lrrrr}
@@ -296,7 +296,7 @@ Participant & Matched to child with TH? & Chronological age & Age at hearing los
 
 \begin{verbatim}
 ## % latex table generated in R 4.0.2 by xtable 1.8-4 package
-## % Sun May  1 13:14:13 2022
+## % Thu May  5 15:58:25 2022
 ## \begin{table}[ht]
 ## \centering
 ## \begin{tabular}{lrrrr}

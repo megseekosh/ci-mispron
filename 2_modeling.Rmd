@@ -30,7 +30,6 @@ all_kids <- read.csv('./data/ha_matched_kids.csv') %>% # contains the N=38 kids 
   filter(Condition!='nonsense') %>% # only going to look at difference between MP and real 
   filter(TargetWord!='tag' & TargetWord!='dog') %>% # 7 children heard dog/tog instead of rice/wice; all TH
   mutate(elog=as.numeric(elog),
-         elog_wts = as.numeric(elog_wts),
          Time = as.numeric(Time),
          Condition.ord=as.ordered(Condition),
          Group.ord=as.ordered(Group),
@@ -64,7 +63,8 @@ two_tp <- all_kids2 %>%
   distinct(ChildStudyID, .keep_all = T) %>%
   add_count() %>%
   distinct(ResearchID, .keep_all = T) %>%
-  filter(n=='2') 
+  filter(n=='2') %>%
+  count(Group)
 
 # how many trials from each group?
 trials <- all_kids2 %>%
@@ -131,10 +131,10 @@ stat_gender %>%
   kableExtra::kable_styling(latex_options = "hold_position")
 ```
 
-```{r, contending with autocorrelation, fig.show='hide',cache=F}
+```{r, contending with autocorrelation, fig.show='hide',cache=T}
 #I first have to factor out autocorrelation between looks. 
 # fit a model with the data properly ordered
-m1_all <- bam(elog_wts ~ Condition.ord +
+m1_all <- bam(elog ~ Condition.ord +
                   s(Time) + 
                   s(Time, by=Condition.ord) +
                   s(Time, ChildStudyID, bs='fs', m=1) + 
@@ -148,7 +148,7 @@ m_acf_all <- acf_resid(m1_all) # plot the autocorrelation and take a look at cor
 
 r1_all <- start_value_rho(m1_all) # first we calculate rho from the original model 
 
-m_AR1_all <- bam(elog_wts ~ Condition.ord +
+m_AR1_all <- bam(elog ~ Condition.ord +
                   s(Time) + 
                   s(Time, by=Condition.ord) +
                   s(Time, ChildStudyID, bs='fs', m=1) + 
@@ -164,7 +164,7 @@ m_AR1_all <- bam(elog_wts ~ Condition.ord +
 m_acf_rmv_all <- acf_resid(m_AR1_all) # took care of the problem!
 ```
 
-```{r, compare word to word-condition model, eval=FALSE}
+```{r, compare word to word-condition model, eval=FALSE,cache=T}
 #Now, I have to see if I am justified in adding a group-level effect to the condition-only model. 
 
 condition_base <- all_kids2 %>%
@@ -178,7 +178,7 @@ condition_base <- all_kids2 %>%
                   rho=r1_all,
                   method="fREML",
                   family="scat",
-                  discrete=TRUE, # must be TRUE to specify non-gaussian response in a scaled-t model; also means we have to use fREML
+                  discrete=TRUE, # must be TRUE to specify non-gaussian response in a scaled-t model; also means we have to use fREML (not REML and not ML)
                   AR.start=start.event)
 
 all_kids2$GroupCondition <- interaction(all_kids2$Group,all_kids2$Condition)
@@ -198,7 +198,8 @@ interact_model <- all_kids2 %>%
                   AR.start=start.event)
 interact_model_summary <- summary(interact_model)
 
-compareML(condition_base,interact_model,print.output = T) # I am justified in continuing the modeling 
+compareML(condition_base,interact_model,print.output = T) # but we can't compare fREML models with different fixed effects
+AIC(condition_base,interact_model) # I am justified in continuing the modeling 
 
 # for visualization purposes (we want to be able to exclude random effects for visualization), we re-fit the model w/o discretizing;  
 interact_model_nd <- all_kids2 %>%
@@ -234,7 +235,7 @@ all_kids2$CIReal0 <- as.ordered(all_kids2$Group=='CochlearImplant' & all_kids2$C
 contrasts(all_kids2$CIReal0) <- "contr.treatment"
 ```
 
-```{r, fit the 2x2 model, eval=FALSE}
+```{r, fit the 2x2 model, eval=FALSE, cache=T}
 groupcond_model <- all_kids2 %>%
   bam(elog ~      Group + # ordered variable
                   THReal0 + 
@@ -276,7 +277,7 @@ all_kids2$IsTHReal <- (all_kids2$Group=='NormalHearing' & all_kids2$Condition=='
 all_kids2$IsCIReal <- (all_kids2$Group=='CochlearImplant' & all_kids2$Condition=='real')*1
 ```
 
-```{r, fit binary difference model, eval=FALSE}
+```{r, fit binary difference model, eval=FALSE,cache=T}
 diff_model <- all_kids2 %>%
   bam(elog ~      Group + 
                   s(Time) +
@@ -307,13 +308,13 @@ hist(diff_model_r,breaks = 20)
 # Results
 ## Analysis plan
 
-Here we evaluate the mispronunciation sensitivity of children with CIs in comparison to their hearing age- and vocabulary size-matched peers. The outcome variable is the proportion of looks to the familiar photo versus the unfamiliar photo, over time (300-1,800 ms after target word onset), which we modeled using Generalized Additive Mixed Models (GAMMs). GAMMs have become an important tool to model time series data, such as eyetracking trajectories, because they can incorporate nonlinear relationships between variables such as time, response, and relevant covariates (i.e., effects of group and/or condition) (rijChildrenEyeGaze2016;zahnerAlignmentF0Peak). GAMMs are composed of (fixed) *parametric* terms that model static relationships between two variables, as is common in generalized linear modeling, as well as *smooth* terms which model nonlinear effects. Parametric terms can be interpreted from model summaries, as in traditional regression, but smooth terms must be interpreted visually. For an introduction to GAMMs, readers are encouraged to consult tutorials in Wieling (2017) and Sóskuthy (2021), as well as the more comprehensive Wood (2017). 
+We evaluate the mispronunciation sensitivity of children with CIs in comparison to their hearing age- and vocabulary size-matched peers. The outcome variable is the proportion of looks to the familiar object versus the unfamiliar object, over time (300--1,800 ms after target word onset), which we modeled using Generalized Additive Mixed Models (GAMMs). GAMMs have become an important tool to model time series data, such as eyetracking trajectories, because they can incorporate nonlinear relationships between variables such as time, response, and relevant covariates (i.e., effects of group and/or condition) (rijChildrenEyeGaze2016;zahnerAlignmentF0Peak). GAMMs are composed of (fixed) *parametric* terms that model static relationships between two variables, as is common in generalized linear modeling, and *smooth* terms that model nonlinear effects by using penalized basis functions (smoothing splines). Parametric terms can be interpreted from model summaries, as in traditional regression, but smooth terms must be interpreted visually. Wieling (2017) and Sóskuthy (2021) provide tutorials for GAMMs in language research and Wood (2017) provides a comprehensive textbook treatment of the approach. 
 
-GAMMs also allow for autocorrelation between observations to be factored into the modeling. Incorporating autocorrelation is of particular importance to eyetracking data where we anticipate large amounts of within-trial correlation between measurements over time: the area where the child is looking at 500ms is highly correlated with where they are looking at 550ms. As such, GAMMs are a significant improvement upon other polynomial regression models common in time series analysis, such as Growth Curve Models (GCMs). GCMs cannot factor in this inherent correlational structure within the data and, as a result, recent work has shown that they result in inflated Type I error rates (Huang & Snedeker, 2020). 
+GAMMs also allow for autocorrelation between observations to be factored into the modeling. Incorporating autocorrelation is of particular importance to eyetracking data where we anticipate large amounts of within-trial correlation between measurements over time: the area where the child is looking at 500ms is highly correlated with where they are looking at 550ms. As such, GAMMs are a significant improvement upon other polynomial regression models common in time series analysis, such as Growth Curve Models (GCMs). The standard approach for estimating GCMs cannot factor in this inherent correlational structure within the data and, as a result, recent work has shown that they result in inflated Type I error rates (Huang & Snedeker, 2020). 
 
-The current data were analyzed in the RStudio computing environment (version 1.4.1717; RStudio). All computing and statistical analyses are included in the GitHub repository affiliated with this project <github.com/megseekosh/ci-mispron>. Visualizations were made using the ggplot2 and cowplot packages. Modeling was conducted and presented using the mgcv, itsadug, and tidymv packages. For all modeling, the proportion of children's looks to the familiar image versus the unfamiliar image was calculated for each frame (every 50 ms) and transformed to empirical logit (elog) (Barr, 2008). Random effects ("factor smooths" in GAMMs) included by-participant, by-observation (first, second,  or third visit to the lab), and by-item trajectories. These factor smooths modeled variability stemming from individual children and lexical items, and took into account the repeated observations from some children at two different ages. Model criticism, To ensure assumptions were met and to avoid overfitting, model criticism was conducted using the gam.check() function; when necessary, the basis function number (*k* or knots) was increased. 
+The current data were analyzed in the RStudio computing environment (R version 4.0.2; Rcite). All computing and statistical analyses are included in the GitHub repository affiliated with this project <github.com/megseekosh/ci-mispron>. Visualizations were made using the ggplot2 and cowplot packages. Modeling was conducted and presented using the mgcv, itsadug, and tidymv packages. For all modeling, the proportion of children's looks to the familiar object versus the unfamiliar object was calculated for each frame (every 50 ms) and transformed to empirical logit (elog), or the log-odds of looking to the familiar object at each sample (Barr, 2008). Random effects ("factor smooths" in GAMMs) included by-participant, by-observation (first [at age 3], second [at age 4],  or third [at age 5] visit to the lab), and by-item trajectories. These factor smooths modeled variability stemming from individual children and lexical items, and took into account the repeated observations from some children at two different ages. To ensure assumptions were met and to avoid overfitting, model criticism was conducted using the gam.check() function; when necessary, the basis function number (*k* or knots) was increased. 
 
-As is common in eye-tracking data, the response data were distributed with heavy tails. Consequently, all models were fit using a scaled t model using the "scat" link function, which substantially improved data distribution (woodSmoothingParameterModel2016). Finally, for each model, autocorrelation between model residuals was calculated; all models showed high amounts of autocorrelation. These dependencies were factored into the modeling by fitting an autoregressive error model (AR(1)) that modeled the degree of autocorrelation (*rho*) between timepoints in each trial. Subsequent model inspection demonstrated that specifying this autocorrelation value in the model sufficiently factored out autocorrelation between residuals (Wieling, 2017).  
+As is common in eye-tracking data, the response data were distributed with heavy tails. Consequently, all models were fit using a scaled-t model using the "scat" link function, which substantially improved data distribution (woodSmoothingParameterModel2016). Finally, for each model, autocorrelation between model residuals was calculated; all models showed high amounts of autocorrelation. These dependencies were factored into the modeling by fitting an autoregressive error model (AR(1)) that modeled the degree of autocorrelation (*rho*) between timepoints in each trial. Subsequent model inspection demonstrated that specifying this autocorrelation value in the model sufficiently factored out autocorrelation between residuals (Wieling, 2017).  
 
 ## Evaluating the effect of phonetic detail on mispronunciation sensitivity
 
@@ -326,7 +327,7 @@ groupcond_model <- readRDS("../hearingage_matched_models/group-cond-model.Rdata"
 groupcond_model_summary <- readRDS("../hearingage_matched_models/group-cond-model-summary.Rdata")
 
 m <- gamtabs(groupcond_model,
-        caption = "Model summary predicting the difference between proportion of looks to the familiar image by word condition and hearing status.",
+        caption = "Model summary predicting the difference between proportion of looks to the familiar object by word condition and hearing status.",
         label="2-by-2-model-summary",
         pnames = c("Intercept (Cochlear Implant: Mispronunciation)", "Typical Hearing", "Typical Hearing: Correct", "Cochlear Implant: Correct"), # the parametric terms
         snames = c("s(Time)","s(Time,Cochlear Implant)","s(Time,Typical Hearing)",
@@ -336,12 +337,12 @@ m <- gamtabs(groupcond_model,
 
 ```
 
-In the first part of the results, we ask: are both children with CIs and their TH matches sensitive to mispronunciations? Parametric effects in the model summary show that there are, overall, significantly more looks to the familiar photo for *Correct Pronunciation* trials than *Mispronunciation* trials, for both children with CIs and TH (CI Est.=`r round(groupcond_model_summary$p.coeff[4],2)`, p<.001; TH Est.=`r round(groupcond_model_summary$p.coeff[3],2)`, p<.001). Interpretation of the non-linear smooths shows that there are significant, non-linear differences in looks to the familiar image between correct- and mis-pronunciations for children with CIs (smooth of **Time** by the ordered **Cochlear Implant; Correct**) and children with TH (smooth of **Time** by the ordered **Typical Hearing; Correct**) (Figure \@ref(fig:2x2-plot)). Thus, both children with CIs and TH are sensitive to mispronunciations.
+In the first part of the results, we ask: are both children with CIs and their TH matches sensitive to mispronunciations? Parametric effects in the model summary show that there are, overall, significantly more looks to the familiar photo for *Correct Pronunciation* trials than *Mispronunciation* trials, for both children with CIs and TH (CI logit Est.=`r round(groupcond_model_summary$p.coeff[4],2)`, p<.001, or proportion Est: `r plogis(groupcond_model_summary$p.coeff[4],2)`; TH logit Est.=`r round(groupcond_model_summary$p.coeff[3],2)`, p<.001, or proportion Est: `r plogis(groupcond_model_summary$p.coeff[3],2)`). we interpret the smooth terms by first considering effective degrees of freedom (EDF) and the significance test for each smooth. The EDF indicates how much wiggliness there is in a smooth where EDF=1 indicates a linear relationship and a larger value indicates more wiggliness in the smooth. Interpretation of the non-linear smooths shows that there are significant, non-linear differences in looks to the familiar object between correct- and mis-pronunciations for children with CIs (smooth of **Time** by the ordered **Cochlear Implant; Correct**) and children with TH (smooth of **Time** by the ordered **Typical Hearing; Correct**) (Figure \@ref(fig:2x2-plot)). Thus, both children with CIs and TH are sensitive to mispronunciations.
 
-```{r, 2x2-plot, fig.cap="GAMM predictions for proportion of looks to familiar image, by word condition and hearing status. Shaded ribbons represent 95% confidence intervals."}
+```{r, 2x2-plot, fig.cap="Observed data and GAMM predictions for proportion of looks to familiar object, by word condition and hearing status. Fixations on the y-axis are plotted as the empirical logit values (elog). Shaded ribbons represent 95% confidence intervals."}
 interact_model_nd <- readRDS("../hearingage_matched_models/interact-model-nd.Rdata")
 
-get_gam_predictions(interact_model_nd, # get the dataframe with fit and s.e. of fit
+interact_model <- get_gam_predictions(interact_model_nd, # get the dataframe with fit and s.e. of fit
                       Time,
                       split = list(GroupCondition = c("Group", "Condition")),
                       exclude_random = TRUE) %>% 
@@ -354,11 +355,47 @@ get_gam_predictions(interact_model_nd, # get the dataframe with fit and s.e. of 
                         scale_color_manual(values=c('darkgoldenrod2','turquoise4')) +
                         scale_fill_manual(values=c('darkgoldenrod2','turquoise4')) +
                         xlab("Time since word onset (ms)")  +
-                        ylab("Estimated fixation to target image (Elog)") +
-                        scale_x_continuous(breaks = c(300,600,900,1200,1500,1800))+
-                        theme(axis.text = element_text(face="bold", size=12),
-                         axis.title = element_text(face="bold", size=15),
-                         legend.title = element_text(face="bold",size=15)) 
+                         ylab("Fixation to target image (Elog)") +
+  scale_y_continuous(breaks = seq(-1,2.5, by = 1), limits = c(-1,2.5)) +
+                        scale_x_continuous(breaks = seq(300,1800, by = 300)) +
+                        theme(axis.text = element_text(face="bold",size=9),
+                              axis.title = element_text(face="bold", size=12),
+                              legend.title = element_text(face="bold",size=12)) 
+
+obs_data <- all_kids2 %>%
+  mutate(GroupCondition=interaction(Group,Condition)) %>%
+ggplot(., aes(Time, Prop, color=Cond_Lab, fill=Cond_Lab, linetype=Group_Lab)) +
+  geom_smooth(aes(group=factor(GroupCondition)), stat="smooth", method="loess",alpha=.3, size=2) + # item level
+  scale_color_manual(values=c('turquoise4','darkgoldenrod2')) +
+  scale_fill_manual(values=c('turquoise4','darkgoldenrod2')) +
+  scale_linetype_manual(values=c(1,3)) +
+  xlab("Time since word onset (ms)") +
+  ylab("Fixation to target image (Proportion)") +
+  #scale_y_continuous(breaks = seq(-.5,2.5, by = .5)) +
+  scale_x_continuous(breaks = seq(300,1800, by = 300)) +
+  theme(axis.text.y = element_text(face="bold", size=9),
+        axis.text.x = element_text(face="bold", size=9),
+        axis.title.x = element_text(face="bold", size=12),
+        axis.title.y = element_text(face="bold", size=12))
+
+legend <- get_legend(
+  interact_model + guides(color = guide_legend(nrow = 1)) +
+    theme(legend.position = "bottom"))
+
+plots <- plot_grid(obs_data + theme(legend.position="none"),
+                   interact_model + theme(legend.position="none"),
+          labels=c("Observed", "Modeled"), 
+          nrow=1, 
+          align="vh",
+          hjust = -1,
+          label_x = 0) 
+
+plot_grid(plots, legend, 
+          ncol = 1, rel_heights = c(1, .1))
+
+#layer_scales(obs_data)$y$range$range
+#layer_scales(interact_model)$y$range$range
+
 ```
 
 Nevertheless, the above modeling cannot tell us if these children with CIs are *less* sensitive to mispronunciations than their TH peers; the modeling demonstrates only that both groups show sensitivity. To evaluate differences in mispronunciation sensitivity by group, another GAMM was fit, with a binary difference smooth, which allowed us to evaluate the *difference* between smooths (Correct- vs. Mis-pronunciations) for children with CIs and TH, over time. Model fit included parametric effects of **Group**, as well as smooths of **Time**, **Time** by **Group**, **Time** by **Condition**, and **Time** by the ordered variable of **Group** by **Condition** (to model the difference between real- and mis-pronunciations for each group). Model results are plotted in Figure \@ref(fig:ci-th-facet-plot); the model summary is included in supplementary materials. Overall, the model-estimated difference smooths show smaller differences between correct- and mis-pronunciations for the children with CIs---and that these differences take longer to manifest during online processing (left panel of Figure \@ref(fig:ci-th-facet-plot)). Further inspection of the first model, as plotted in Figure \@ref(fig:real-mp-facet-plot), demonstrates why this is the case. The children with CIs and TH do not respond significantly differently to correct pronunciations: once vocabulary size and hearing age are controlled, both groups of children respond similarly to correctly-pronounced words. Instead, children with CIs---who are listening with a degraded speech signal via electric hearing---are less sensitive to *mis*-pronunciations (Figure \@ref(fig:real-mp-facet-plot)), resulting in smaller difference smooths between correct- and mis-pronunciations. 
@@ -412,7 +449,7 @@ plot_grid(ci_diff, th_diff,
 
 ```
 
-```{r, real-mp-facet-plot, fig.cap="Difference smooths (GAMM predictions) by hearing status for correct pronunciations (L) and mispronunciations (R). The pink smooth represents the point when the smooth for children with CIs differs from children with TH (i.e., reliable effect of group): there is an effect of group upon mispronunciations, but not correct pronunciations. Shaded ribbons represent 95% confidence intervals."}
+```{r, real-mp-facet-plot, fig.cap="Difference smooths (GAMM predictions) by hearing status for correct pronunciations and mispronunciations. The pink smooth represents the point when the smooth for children with TH differs from children with CIs (i.e., reliable effect of group): there is an effect of group upon mispronunciations (L plot: see also difference between yellow lines in Figure 1), but not correct pronunciations  (R plot: see also difference between turquoise lines in Figure 1). Shaded ribbons represent 95% confidence intervals."}
 real_diff <- get_smooths_difference(interact_model_nd, 
                        Time, 
                        list(GroupCondition = c("NormalHearing.real", "CochlearImplant.real")),
@@ -579,7 +616,7 @@ looks %>%
 ci_kids <- looks %>% filter(Group=='CochlearImplant')
 ```
 
-```{r, contending with autocorrelation for CIs, fig.show='hide',cache=F}
+```{r, contending with autocorrelation for CIs, fig.show='hide',cache=T}
 contrasts(ci_kids$Condition.ord) <- "contr.treatment"
 ci_kids$start.event <- ci_kids$Time == 300 # mark the beginning of each speaker's trajectory; 
                                             # where we start measuring at 300ms
@@ -668,7 +705,7 @@ We fit the non-linear interaction of **Time**, **Condition**, and **Vocabulary S
 
 Once again, it is necessary to plot the model predictions in order to interpret GAMM outputs, in this case how phonetic accuracy mediates mispronunciation sensitivity for the children with CIs. To facilitate interpretation of the non-linear three-way interaction, the children with CIs were divided into tertiles by vocabulary score and phonetic accuracy. Predictions from the model, by articulatory tertile, are plotted in Figure \@ref(fig:CI-diff-plot) and raw response curves are plotted in Figure \@ref(fig:CI-raw-plot). The model predictions demonstrate that stronger articulators show larger differences between looks to the target for correct- versus mis-pronunciations (higher overall y-intercept value) and that stronger articulators show significant differences between correct- and mis-pronunciations slightly earlier in the analysis window (cross-over from purple to pink smooth occurs sooner in the analysis window). Thus, for the children with CIs, phonetic/articulatory accuracy predicts mispronunciation sensitivity, independent of age and language ability.
 
-```{r, CI-diff-plot, fig.cap="Difference smooths (GAMM predictions) between correct- and mis-pronunciations for children with CIs, by standardized articulatory score. Pink smooths represent the point when correct- and mis-pronunciations smooths differ (i.e., reliable effect of condition). Children were divided into tertiles by score with smooths representing the median score for poorer (median score=57), better (72), and best (96) articulators."}
+```{r, CI-diff-plot, fig.cap="Difference smooths (GAMM predictions) between correct- and mis-pronunciations for children with CIs, by standardized articulatory score. Pink smooths represent the point when correct- and mis-pronunciations smooths differ (i.e., reliable effect of condition). Children were divided into tertiles by score with smooths representing the median score for children with poorer (median score=57), better (72), and best (96) articulatory scores."}
 gfta_model_CI <- readRDS("../all_child_models/ci/gfta-model-ci.Rdata")
 
 # create tertiles
@@ -727,29 +764,35 @@ get_smooths_difference(gfta_model_CI,
         axis.title.y = element_text(face="bold", size=12))
 ```
 
-```{r, CI-raw-plot, fig.cap="Raw response trajectories for proportion of looks to familiar image for children with CIs, by word condition and standardized articulatory score. Children were divided into tertiles by score: poorer (median score=57), better (72), and best (96) articulators."}
+```{r, CI-raw-plot, fig.cap="Raw response trajectories for proportion of looks to familiar object for children with CIs, by word condition and standardized articulatory score. Children were divided into tertiles by score: poorer (median score=57), better (72), and best (96) articulatory scores."}
 
 ci_kids_plot <- ci_kids %>%
-  merge(., ci_kids3, by='ChildStudyID')
+  merge(., ci_kids3, by='ChildStudyID') %>%
+    filter(Prop!='NA') 
 ci_kids_plot$ConditionChild <- interaction(ci_kids_plot$Condition,ci_kids_plot$ChildStudyID)
 
 ci_kids_plot %>%
-  mutate(tertile=recode(tertile, "1"="Poorer","2"="Better","3"="Best")) %>%
-  ggplot(., aes(x=Time, y=elog)) +
-  geom_line(aes(group=factor(ConditionChild),alpha=tertile,color=Condition), stat="smooth", method="loess",se=FALSE, size=.8) + 
-  scale_color_manual(values=c('turquoise4','darkgoldenrod2')) +
-  scale_alpha_manual(values=c(.4,.6,1)) +
+  mutate(tertile=recode(tertile, "1"="Poorer","2"="Better","3"="Best"),
+         GroupCondition=interaction(Group,Condition)) %>%
+  ggplot(., aes(x=Time, y=Prop, color=Cond_Lab, fill=Cond_Lab, linetype=Group_Lab)) +
+  geom_line(aes(group=factor(ConditionChild)), stat="smooth", alpha=.3, method="loess",se=FALSE, size=.6) + 
+  geom_smooth(aes(group=factor(GroupCondition)), stat="smooth", method="loess",size=2) + # item level
+  scale_color_manual(values=c('darkgoldenrod2','turquoise4')) +
+  scale_fill_manual(values=c('darkgoldenrod2','turquoise4')) +
+  #scale_alpha_manual(values=c(.4,.6,1)) +
   facet_wrap(~tertile) +
   xlab("Time (ms)") + 
-  ylab("Elog") + 
-  ylim(-2,4) +
-  theme(axis.text=element_text(size=12),
+  ylab("Fixation to target image (Proportion)") + 
+  ylim(0,1.1) +
+  scale_x_continuous(breaks = seq(300,1800, by = 300)) +
+  theme(axis.text = element_text(face="bold",size=9),
+        axis.title = element_text(face="bold", size=12),
         plot.margin = unit(c(1,1,2,1), "lines"),
-        axis.title=element_text(size=17,face="bold"),
         strip.text = element_text(size=12,face='bold'),
         legend.position="none") + 
-      annotate(geom="text", x=525, y=2.7, size=4, label="Correct",color='darkgoldenrod3') +
-      annotate(geom="text", x=900, y=-1.2, size=4, label="Mispronunciation",color='turquoise4')
+      annotate(geom="text", x=525, y=1, size=4, label="Correct",color='darkgoldenrod3') +
+      annotate(geom="text", x=900, y=0.05, size=4, label="Mispronunciation",color='turquoise4')
+
 ```
 
 ```{r, read in all TH kids}
@@ -798,7 +841,7 @@ shoup <- th_kids %>%
 matched_cis <- all_kids2 %>%
   distinct(ResearchID, .keep_all = T) %>%
   filter(Group=='CochlearImplant') %>%
-  select(ResearchID) %>%
+  dplyr::select(ResearchID) %>%
   mutate(`Matched to child with TH?` = 'Y')
 
 all_cis <- read.csv('./data/audiological_info.csv') %>% 
@@ -821,7 +864,7 @@ all_cis2 %>%
          Etiology=etiology,
          `Device formation`=device_formation,
          `Activation order`=activation_order) %>%
-  select(-X,-ChildStudyID) %>%
+  dplyr::select(-X,-ChildStudyID) %>%
   knitr::kable(., booktabs=T, 
               caption= "Audiological information from the N=25 unique children with cochlear implants studied.",
              row.names = FALSE) %>% 
@@ -832,7 +875,7 @@ all_cis2 %>%
 
 # avg and sd age of activation
 act_stats <- all_cis2 %>%
-  mutate(avg_activation = mean(age_at_activation),
+  summarize(avg_activation = mean(age_at_activation),
          sd_activation = sd(age_at_activation),
          min_activation = min(age_at_activation),
          max_activation = max(age_at_activation))

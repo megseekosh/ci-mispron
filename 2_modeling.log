@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.4.7)  1 MAY 2022 13:14
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.4.7)  5 MAY 2022 15:58
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -641,7 +641,7 @@ eady used, duplicate ignored
 
 \AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
                                                   \fi \fi 
-l.113 
+l.111 
       ]
 
 LaTeX Warning: Reference `tab:2-by-2-model-summary' on page 2 undefined on inpu
@@ -658,20 +658,27 @@ Overfull \hbox (2.7436pt too wide) in paragraph at lines 148--148
  []
 
 
-Overfull \hbox (265.24284pt too wide) in paragraph at lines 148--148
+Overfull \hbox (270.49283pt too wide) in paragraph at lines 148--148
 []\T1/lmtt/m/n/10 ## \caption{Model summary predicting the difference between p
-roportion of looks to the familiar image by word condition and hearing status.}
-[] 
+roportion of looks to the familiar object by word condition and hearing status.
+}[] 
  []
 
 [2]
-<2_modeling_files/figure-latex/2x2-plot-1.pdf, id=28, 453.695pt x 318.18875pt>
+<2_modeling_files/figure-latex/2x2-plot-1.pdf, id=28, 469.755pt x 315.1775pt>
 File: 2_modeling_files/figure-latex/2x2-plot-1.pdf Graphic file (type pdf)
 <use 2_modeling_files/figure-latex/2x2-plot-1.pdf>
 Package pdftex.def Info: 2_modeling_files/figure-latex/2x2-plot-1.pdf  used on 
 input line 154.
-(pdftex.def)             Requested size: 453.6939pt x 318.18796pt.
-<2_modeling_files/figure-latex/ci-th-facet-plot-1.pdf, id=33, 463.7325pt x 317.
+(pdftex.def)             Requested size: 469.75386pt x 315.17673pt.
+[3pdfTeX warning (ext4): destination with the same identifier (name{figure.1}) 
+has been already used, duplicate ignored
+
+\AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
+                                                  \fi \fi 
+l.159 
+       <./2_modeling_files/figure-latex/2x2-plot-1.pdf>]
+<2_modeling_files/figure-latex/ci-th-facet-plot-1.pdf, id=50, 463.7325pt x 317.
 185pt>
 File: 2_modeling_files/figure-latex/ci-th-facet-plot-1.pdf Graphic file (type p
 df)
@@ -679,7 +686,7 @@ df)
 Package pdftex.def Info: 2_modeling_files/figure-latex/ci-th-facet-plot-1.pdf  
 used on input line 162.
 (pdftex.def)             Requested size: 463.73842pt x 317.18904pt.
-<2_modeling_files/figure-latex/real-mp-facet-plot-1.pdf, id=34, 464.73625pt x 3
+<2_modeling_files/figure-latex/real-mp-facet-plot-1.pdf, id=51, 464.73625pt x 3
 17.185pt>
 File: 2_modeling_files/figure-latex/real-mp-facet-plot-1.pdf Graphic file (type
  pdf)
@@ -687,82 +694,82 @@ File: 2_modeling_files/figure-latex/real-mp-facet-plot-1.pdf Graphic file (type
 Package pdftex.def Info: 2_modeling_files/figure-latex/real-mp-facet-plot-1.pdf
   used on input line 168.
 (pdftex.def)             Requested size: 464.74928pt x 317.19388pt.
-[3pdfTeX warning (ext4): destination with the same identifier (name{figure.1}) 
-has been already used, duplicate ignored
 
-\AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
-                                                  \fi \fi 
-l.187 \end{table}
-                  <./2_modeling_files/figure-latex/2x2-plot-1.pdf>] [4pdfTeX wa
-rning (ext4): destination with the same identifier (name{figure.2}) has been al
-ready used, duplicate ignored
-
-\AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
-                                                  \fi \fi 
-l.187 \end{table}
-                  <./2_modeling_files/figure-latex/ci-th-facet-plot-1.pdf>] [5p
-dfTeX warning (ext4): destination with the same identifier (name{figure.3}) has
- been already used, duplicate ignored
-
-\AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
-                                                  \fi \fi 
-l.187 \end{table}
-                  <./2_modeling_files/figure-latex/real-mp-facet-plot-1.pdf>]
 Overfull \hbox (41.56358pt too wide) in paragraph at lines 193--201
  [][] 
  []
 
-<2_modeling_files/figure-latex/CI-diff-plot-1.pdf, id=84, 463.7325pt x 316.1812
+
+LaTeX Warning: `!h' float specifier changed to `!ht'.
+
+[4pdfTeX warning (ext4): destination with the same identifier (name{figure.2}) 
+has been already used, duplicate ignored
+
+\AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
+                                                  \fi \fi 
+l.204 
+      pdfTeX warning (ext4): destination with the same identifier (name{table.2
+}) has been already used, duplicate ignored
+
+\AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
+                                                  \fi \fi 
+l.204 
+       <./2_modeling_files/figure-latex/ci-th-facet-plot-1.pdf>] [5pdfTeX warni
+ng (ext4): destination with the same identifier (name{figure.3}) has been alrea
+dy used, duplicate ignored
+
+\AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
+                                                  \fi \fi 
+l.204 
+       <./2_modeling_files/figure-latex/real-mp-facet-plot-1.pdf>]
+<2_modeling_files/figure-latex/CI-diff-plot-1.pdf, id=86, 463.7325pt x 316.1812
 4pt>
 File: 2_modeling_files/figure-latex/CI-diff-plot-1.pdf Graphic file (type pdf)
 <use 2_modeling_files/figure-latex/CI-diff-plot-1.pdf>
 Package pdftex.def Info: 2_modeling_files/figure-latex/CI-diff-plot-1.pdf  used
  on input line 213.
 (pdftex.def)             Requested size: 463.73842pt x 316.18529pt.
-<2_modeling_files/figure-latex/CI-raw-plot-1.pdf, id=85, 441.65pt x 282.05376pt
+<2_modeling_files/figure-latex/CI-raw-plot-1.pdf, id=87, 449.68pt x 284.06125pt
 >
 File: 2_modeling_files/figure-latex/CI-raw-plot-1.pdf Graphic file (type pdf)
 <use 2_modeling_files/figure-latex/CI-raw-plot-1.pdf>
 Package pdftex.def Info: 2_modeling_files/figure-latex/CI-raw-plot-1.pdf  used 
 on input line 219.
-(pdftex.def)             Requested size: 441.66911pt x 282.06596pt.
+(pdftex.def)             Requested size: 449.69948pt x 284.07353pt.
 
 Overfull \hbox (340.80075pt too wide) in paragraph at lines 230--265
  [][] 
  []
 
-[6pdfTeX warning (ext4): destination with the same identifier (name{table.2}) h
-as been already used, duplicate ignored
 
-\AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
-                                                  \fi \fi 
-l.265 \end{table}
-                 pdfTeX warning (ext4): destination with the same identifier (n
-ame{table.3}) has been already used, duplicate ignored
+LaTeX Warning: `!h' float specifier changed to `!ht'.
 
-\AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
-                                                  \fi \fi 
-l.265 \end{table}
-                 ] [7pdfTeX warning (ext4): destination with the same identifie
-r (name{figure.4}) has been already used, duplicate ignored
 
-\AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
-                                                  \fi \fi 
-l.265 \end{table}
-                  <./2_modeling_files/figure-latex/CI-diff-plot-1.pdf>] [8pdfTe
-X warning (ext4): destination with the same identifier (name{figure.5}) has bee
-n already used, duplicate ignored
-
-\AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
-                                                  \fi \fi 
-l.265 \end{table}
-                  <./2_modeling_files/figure-latex/CI-raw-plot-1.pdf>]
 Overfull \hbox (2.7436pt too wide) in paragraph at lines 295--295
 []\T1/lmtt/m/n/10 ##   Intercept (Cochlear Implant: Mispronunciation) & 0.2560 
 & 0.1922 & 1.3325 & 0.1827 \\[] 
  []
 
+[6pdfTeX warning (ext4): destination with the same identifier (name{table.3}) h
+as been already used, duplicate ignored
 
+\AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
+                                                  \fi \fi 
+l.295 \end{verbatim}
+                    ] [7pdfTeX warning (ext4): destination with the same identi
+fier (name{figure.4}) has been already used, duplicate ignored
+
+\AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
+                                                  \fi \fi 
+l.295 \end{verbatim}
+                     <./2_modeling_files/figure-latex/CI-diff-plot-1.pdf>] [8pd
+fTeX warning (ext4): destination with the same identifier (name{figure.5}) has 
+been already used, duplicate ignored
+
+\AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
+                                                  \fi \fi 
+l.295 \end{verbatim}
+                     <./2_modeling_files/figure-latex/CI-raw-plot-1.pdf>]
 Overfull \hbox (139.24321pt too wide) in paragraph at lines 295--295
 []\T1/lmtt/m/n/10 ##   s(Time,Cochlear Implant Correct - Cochlear Implant Mispr
 onunciation) & 6.0112 & 7.2081 & 8.2213 & $<$ 0.0001 \\[] 
@@ -779,7 +786,7 @@ as been already used, duplicate ignored
 
 \AtBegShi@Output ...ipout \box \AtBeginShipoutBox 
                                                   \fi \fi 
-l.295 \end{verbatim}
+l.323 \end{verbatim}
                     ]
 Overfull \hbox (23.74355pt too wide) in paragraph at lines 323--323
 []\T1/lmtt/m/n/10 ## \caption{Predicting the degree of mispronunciation sensiti
@@ -798,13 +805,13 @@ LaTeX Warning: There were undefined references.
 Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 325.
  ) 
 Here is how much of TeX's memory you used:
- 14613 strings out of 480608
- 214120 string characters out of 5903631
- 525943 words of memory out of 5000000
+ 14615 strings out of 480608
+ 214140 string characters out of 5903631
+ 526186 words of memory out of 5000000
  30107 multiletter control sequences out of 15000+600000
- 586229 words of font info for 108 fonts, out of 8000000 for 9000
+ 586265 words of font info for 109 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 41i,9n,42p,1844b,473s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 41i,9n,42p,1844b,481s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/usr/local/texlive/2020/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}</usr/local/
 texlive/2020/texmf-dist/fonts/type1/public/lm/lmbx10.pfb></usr/local/texlive/20
 20/texmf-dist/fonts/type1/public/lm/lmbx12.pfb></usr/local/texlive/2020/texmf-d
@@ -812,7 +819,7 @@ ist/fonts/type1/public/lm/lmr10.pfb></usr/local/texlive/2020/texmf-dist/fonts/t
 ype1/public/lm/lmr12.pfb></usr/local/texlive/2020/texmf-dist/fonts/type1/public
 /lm/lmr17.pfb></usr/local/texlive/2020/texmf-dist/fonts/type1/public/lm/lmri10.
 pfb></usr/local/texlive/2020/texmf-dist/fonts/type1/public/lm/lmtt10.pfb>
-Output written on 2_modeling.pdf (10 pages, 261822 bytes).
+Output written on 2_modeling.pdf (10 pages, 276933 bytes).
 PDF statistics:
  194 PDF objects out of 1000 (max. 8388607)
  158 compressed objects within 2 object streams
