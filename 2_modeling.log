@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.4.7)  5 MAY 2022 15:58
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.4.7)  17 MAY 2022 12:24
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -744,12 +744,6 @@ Overfull \hbox (340.80075pt too wide) in paragraph at lines 230--265
 
 LaTeX Warning: `!h' float specifier changed to `!ht'.
 
-
-Overfull \hbox (2.7436pt too wide) in paragraph at lines 295--295
-[]\T1/lmtt/m/n/10 ##   Intercept (Cochlear Implant: Mispronunciation) & 0.2560 
-& 0.1922 & 1.3325 & 0.1827 \\[] 
- []
-
 [6pdfTeX warning (ext4): destination with the same identifier (name{table.3}) h
 as been already used, duplicate ignored
 
@@ -770,6 +764,12 @@ been already used, duplicate ignored
                                                   \fi \fi 
 l.295 \end{verbatim}
                      <./2_modeling_files/figure-latex/CI-raw-plot-1.pdf>]
+Overfull \hbox (2.7436pt too wide) in paragraph at lines 295--295
+[]\T1/lmtt/m/n/10 ##   Intercept (Cochlear Implant: Mispronunciation) & 0.2560 
+& 0.1922 & 1.3325 & 0.1827 \\[] 
+ []
+
+
 Overfull \hbox (139.24321pt too wide) in paragraph at lines 295--295
 []\T1/lmtt/m/n/10 ##   s(Time,Cochlear Implant Correct - Cochlear Implant Mispr
 onunciation) & 6.0112 & 7.2081 & 8.2213 & $<$ 0.0001 \\[] 
@@ -805,11 +805,11 @@ LaTeX Warning: There were undefined references.
 Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 325.
  ) 
 Here is how much of TeX's memory you used:
- 14615 strings out of 480608
- 214140 string characters out of 5903631
- 526186 words of memory out of 5000000
+ 14619 strings out of 480608
+ 214186 string characters out of 5903631
+ 525200 words of memory out of 5000000
  30107 multiletter control sequences out of 15000+600000
- 586265 words of font info for 109 fonts, out of 8000000 for 9000
+ 586478 words of font info for 111 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  41i,9n,42p,1844b,481s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/usr/local/texlive/2020/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}</usr/local/
@@ -819,7 +819,7 @@ ist/fonts/type1/public/lm/lmr10.pfb></usr/local/texlive/2020/texmf-dist/fonts/t
 ype1/public/lm/lmr12.pfb></usr/local/texlive/2020/texmf-dist/fonts/type1/public
 /lm/lmr17.pfb></usr/local/texlive/2020/texmf-dist/fonts/type1/public/lm/lmri10.
 pfb></usr/local/texlive/2020/texmf-dist/fonts/type1/public/lm/lmtt10.pfb>
-Output written on 2_modeling.pdf (10 pages, 276933 bytes).
+Output written on 2_modeling.pdf (10 pages, 277386 bytes).
 PDF statistics:
  194 PDF objects out of 1000 (max. 8388607)
  158 compressed objects within 2 object streams

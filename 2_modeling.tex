@@ -78,7 +78,7 @@
 
 \title{CI mispronunciation sensitivity: results}
 \author{Meg Cychosz}
-\date{05 May 2022}
+\date{17 May 2022}
 
 \begin{document}
 \maketitle
@@ -120,7 +120,7 @@ To statistically evaluate the source of the \textbf{Group} effect (i.e., stemmin
 
 \begin{verbatim}
 ## % latex table generated in R 4.0.2 by xtable 1.8-4 package
-## % Thu May  5 15:58:03 2022
+## % Tue May 17 12:23:51 2022
 ## \begin{table}[ht]
 ## \centering
 ## \begin{tabular}{lrrrr}
@@ -202,22 +202,22 @@ NormalHearing & 15 , 9 & 52.71 ( 10.81 ) 36 - 66 & 52.71 ( 10.81 ) 36 - 66 & 5.6
 
 Having established that children with CIs are less sensitive to mispronunciations than their TH peers, we next correlated the children's responses with two different standardized speech-language assessments: expressive vocabulary size (EVT-2) and spoken phonetic/articulatory accuracy (GFTA-2). Because we took an individual differences approach, we examined the children with CIs and TH separately.
 
-We modeled the effects of vocabulary size and articulation on \emph{all} children who completed both assessments (N=33 with CIs and N=24 with TH) by using stepwise GAMM fitting. Specifically, we assessed the non-linear interaction between \textbf{Time}, \textbf{Condition}, and \textbf{Vocabulary Score}/\textbf{Phonetic Accuracy} to evaluate if children's vocabulary sizes and/or phonetic accuracy mediated their looks to the target over time for the correct- and mis-pronunciation conditions. As before, all models included factor (random) smooths by participant, observation, and item. Each additionally included a difference smooth of \textbf{Time} and \textbf{Participant} by \textbf{Condition} (\emph{Correct-} versus \emph{Mis-pronunciation}). A baseline model was fit with a parametric term for \textbf{Condition}, smooth terms for \textbf{Time} and \textbf{Time} by \textbf{Condition}, as well as a non-linear interaction (tensor product) of \textbf{Time} and \textbf{Child Age} (modeled continuously) by \textbf{Condition}. In all models we included the tensor product term with child age because our variables of interest, vocabulary score and phonetic accuracy, are confounded with age and we wanted to evaluate the potential influence of these speech-language abilities independent of child age.
+We modeled the effects of vocabulary size and articulation on the children who completed both assessments (N=33 with CIs and N=24 with TH) by using stepwise GAMM fitting. Specifically, we assessed the non-linear interaction between \textbf{Time}, \textbf{Condition}, and \textbf{Vocabulary Score}/\textbf{Phonetic Accuracy} to evaluate if children's vocabulary sizes and/or phonetic accuracy predicted their looks to the target over time for the correct- and mis-pronunciation conditions. As before, all models included factor (random) smooths by participant, observation (visit to the lab), and item. Each additionally included a difference smooth of \textbf{Time} and \textbf{Participant} by \textbf{Condition} (\emph{Correct-} versus \emph{Mis-pronunciation}). A baseline model was fit with a parametric term for \textbf{Condition} (estimating the average looking probability in each condition), smooth terms for \textbf{Time} and \textbf{Time} by \textbf{Condition}, as well as a non-linear interaction (tensor product) of \textbf{Time} and \textbf{Child Age} (modeled continuously) by \textbf{Condition}. In all models we included the Age by Condition tensor product smooth term because our child-level variables (vocabulary score and phonetic accuracy) are confounded with age, and we wanted to evaluate the potential influence of these speech-language abilities independent of child age.
 
-We fit the non-linear interaction of \textbf{Time}, \textbf{Condition}, and \textbf{Vocabulary Score} and \textbf{Time}, \textbf{Condition}, and \textbf{Phonetic Accuracy} using tensor product terms. For the children with TH, neither the vocabulary nor phonetic accuracy term improved upon a baseline model controlling for child age. This result indicates that, for the children with TH, mispronunciation sensitivity---the difference in looks to the target image in correct- versus mis-pronunciation conditions---is not mediated by vocabulary size or phonetic accuracy. For the children with CIs, best model fit included \textbf{Phonetic Accuracy}; \textbf{Vocabulary Score} did not improve upon model fit. The final model summary for the children with CIs is included in the supplementary materials.
+We fit the three-way interaction of \textbf{Time}, \textbf{Condition}, and \textbf{Vocabulary Score} and \textbf{Time}, \textbf{Condition}, and \textbf{Phonetic Accuracy} using tensor product terms. For the children with TH, neither the vocabulary nor phonetic accuracy term improved upon a baseline model controlling for child age. This result indicates that, for the children with TH, mispronunciation sensitivity---the difference in looks to the target image in correct- versus mis-pronunciation conditions---is not moderated by vocabulary size or phonetic accuracy over and above age effects. For the children with CIs, best model fit included \textbf{Phonetic Accuracy}; \textbf{Vocabulary Score} did not improve upon model fit. The final model summary for the children with CIs is included in the supplementary materials.
 
-Once again, it is necessary to plot the model predictions in order to interpret GAMM outputs, in this case how phonetic accuracy mediates mispronunciation sensitivity for the children with CIs. To facilitate interpretation of the non-linear three-way interaction, the children with CIs were divided into tertiles by vocabulary score and phonetic accuracy. Predictions from the model, by articulatory tertile, are plotted in Figure \ref{fig:CI-diff-plot} and raw response curves are plotted in Figure \ref{fig:CI-raw-plot}. The model predictions demonstrate that stronger articulators show larger differences between looks to the target for correct- versus mis-pronunciations (higher overall y-intercept value) and that stronger articulators show significant differences between correct- and mis-pronunciations slightly earlier in the analysis window (cross-over from purple to pink smooth occurs sooner in the analysis window). Thus, for the children with CIs, phonetic/articulatory accuracy predicts mispronunciation sensitivity, independent of age and language ability.
+Given the multiple non-linear effects at play, it is necessary to plot the model predictions in order to interpret GAMM outputs, in particular how phonetic accuracy mediates mispronunciation sensitivity for the children with CIs. To facilitate interpretation of the non-linear three-way interaction, the children with CIs were divided into tertiles by vocabulary score and phonetic accuracy. Predictions from the model, by articulatory tertile, are plotted in Figure \ref{fig:CI-diff-plot} and raw response curves are plotted in Figure \ref{fig:CI-raw-plot}. The model predictions demonstrate that children with better articulation scores show larger differences between looks to the target for correct- versus mis-pronunciations (higher overall \emph{y}-intercept value) and that these children show significant differences between correct- and mis-pronunciations slightly earlier in the analysis window (cross-over from purple to pink smooth occurs sooner in the analysis window). Thus, for the children with CIs, phonetic/articulatory accuracy predicts mispronunciation sensitivity, independent of age and language ability.
 
 \begin{figure}
 \centering
 \includegraphics{2_modeling_files/figure-latex/CI-diff-plot-1.pdf}
-\caption{\label{fig:CI-diff-plot}Difference smooths (GAMM predictions) between correct- and mis-pronunciations for children with CIs, by standardized articulatory score. Pink smooths represent the point when correct- and mis-pronunciations smooths differ (i.e., reliable effect of condition). Children were divided into tertiles by score with smooths representing the median score for children with poorer (median score=57), better (72), and best (96) articulatory scores.}
+\caption{\label{fig:CI-diff-plot}Difference smooths (GAMM predictions) between correct- and mis-pronunciations for children with CIs, by standardized articulation score. Pink smooths represent the point when correct- and mis-pronunciations smooths significantly differ (i.e., reliable effect of condition). Children were divided into tertiles by score with smooths representing the median score for children with poorer (median score=57), better (72), and best (96) articulation scores.}
 \end{figure}
 
 \begin{figure}
 \centering
 \includegraphics{2_modeling_files/figure-latex/CI-raw-plot-1.pdf}
-\caption{\label{fig:CI-raw-plot}Raw response trajectories for proportion of looks to familiar object for children with CIs, by word condition and standardized articulatory score. Children were divided into tertiles by score: poorer (median score=57), better (72), and best (96) articulatory scores.}
+\caption{\label{fig:CI-raw-plot}Raw response trajectories for proportion of looks to familiar object for children with CIs, by word condition and standardized articulation score. Children were divided into tertiles by score: poorer (median score=57), better (72), and best (96) articulation scores.}
 \end{figure}
 
 \hypertarget{appendices}{%
@@ -269,7 +269,7 @@ Participant & Matched to child with TH? & Chronological age & Age at hearing los
 
 \begin{verbatim}
 ## % latex table generated in R 4.0.2 by xtable 1.8-4 package
-## % Thu May  5 15:58:14 2022
+## % Tue May 17 12:24:02 2022
 ## \begin{table}[ht]
 ## \centering
 ## \begin{tabular}{lrrrr}
@@ -296,7 +296,7 @@ Participant & Matched to child with TH? & Chronological age & Age at hearing los
 
 \begin{verbatim}
 ## % latex table generated in R 4.0.2 by xtable 1.8-4 package
-## % Thu May  5 15:58:25 2022
+## % Tue May 17 12:24:13 2022
 ## \begin{table}[ht]
 ## \centering
 ## \begin{tabular}{lrrrr}
