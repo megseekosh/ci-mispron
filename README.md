@@ -2,7 +2,7 @@
 
 Code to replicate results from:
 
-Cychosz, M., Mahr, T., Munson, B., Newman, R., & Edwards, J. R. (*submitted*). Phonetic detail, not auditory deprivation, shapes how preschoolers with cochlear implants process speech variation. [pre-print](https://psyarxiv.com/cj8qp/))
+Cychosz, M., Mahr, T., Munson, B., Newman, R., & Edwards, J. R. (*submitted*). Phonetic detail, not auditory deprivation, shapes how preschoolers with cochlear implants process speech variation. 10.31234/osf.io/cj8qp. [pre-print](https://psyarxiv.com/cj8qp/)
 
 
 # datasets
