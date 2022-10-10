@@ -25,6 +25,8 @@ Cychosz, M., Mahr, T., Munson, B., Newman, R., & Edwards, J. R. (*submitted*). P
 
 * `2_modeling.Rmd` - replicate the results section of the manuscript
 
+* `2a_modeling_novelWords.Rmd` - replicate supplementary materials II, comparing responses to real versus novel words
+
 # manuscript
 
 `manuscript.pdf`
