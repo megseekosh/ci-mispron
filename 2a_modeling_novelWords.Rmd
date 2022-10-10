@@ -1,0 +1,662 @@
+---
+title: "Supplementary Materials II: Comparing responses to real and novel words"
+author: "Meg Cychosz"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: 
+  bookdown::pdf_document2:
+    keep_tex: true
+    toc: False
+indent: true
+---
+```{r setup, include=FALSE}
+library("knitr") # v. 1.33
+library('tidyverse') # v. 1.3.0
+library('itsadug') # v. 2.4
+library('mgcv') # v. 1.8-38
+library('ggplot2') # v. 3.3.5
+library('tidymv') # v. 3.3.0 
+library('cowplot') # v. 1.1.1
+library('kableExtra') # v. 1.2.1
+library('gridExtra') # v. 2.3 
+
+knitr::opts_chunk$set(message=FALSE, 
+                      warning=FALSE,
+                      echo=FALSE)
+```
+
+```{r, read in data}
+all_kids <- read.csv('./data/ha_matched_kids.csv') %>% # contains the N=38 kids who are hearing age-matched
+  filter(Condition!='MP') %>% # only going to look at difference between novel words and real 
+  filter(TargetWord!='vef' & TargetWord!='dog') %>% # 7 children heard dog/vef instead of rice; all TH
+  mutate(elog=as.numeric(elog),
+         Time = as.numeric(Time),
+         Condition.ord=as.ordered(Condition),
+         Group.ord=as.ordered(Group),
+         ChildStudyID=as.factor(ChildStudyID),
+         WordGroup=as.factor(WordGroup)) %>% 
+  arrange(Time) 
+
+all_kids$start.event <- all_kids$Time == 300 # mark the beginning of each speaker's trajectory
+
+# make sure the data to configure autocorrelation are properly ordered and classified
+vars <- c("WordGroup", "TargetWord", "ChildStudyID", "num_visit", "Group", "Condition")
+all_kids2 <- all_kids %>%
+  distinct(ChildStudyID, .keep_all = T) %>%
+  group_by(ResearchID) %>% 
+  mutate(num_visit = str_sub(Study, -1)) %>% # classify which visit it was (first, second, or third)
+  dplyr::select(num_visit, ChildStudyID, ResearchID) %>%
+  merge(., all_kids, by=c("ResearchID", "ChildStudyID")) %>%
+  arrange(ChildStudyID, Group, TargetWord, Time) %>%
+  mutate_at(vars, factor) 
+```
+
+```{r, contending with autocorrelation, fig.show='hide',cache=T, eval=F}
+#I first have to factor out autocorrelation between looks. 
+# fit a model with the data properly ordered
+m1_all <- bam(elog ~ Condition.ord +
+                  s(Time) + 
+                  s(Time, by=Condition.ord) +
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs="fs", m=1) +
+                  s(Time, ChildStudyID, by=Condition.ord, bs="fs", m=1),
+                  data=all_kids2, 
+                  method="fREML") 
+
+m_acf_all <- acf_resid(m1_all) # plot the autocorrelation and take a look at correlation between timepoints - yikes!
+
+r1_all <- start_value_rho(m1_all) # first we calculate rho from the original model 
+
+m_AR1_all <- bam(elog ~ Condition.ord +
+                  s(Time) + 
+                  s(Time, by=Condition.ord) +
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs="fs", m=1) +
+                  s(Time, ChildStudyID, by=Condition.ord, bs="fs", m=1),
+                         data=all_kids2, 
+                         method="fREML",
+                         rho=r1_all, 
+                         AR.start=start.event)
+
+# we can plot the improvement here:
+m_acf_rmv_all <- acf_resid(m_AR1_all) # took care of the problem!
+```
+
+```{r, compare word to word-condition model, eval=FALSE,cache=T}
+#Now, I have to see if I am justified in adding a group-level effect to the condition-only model. 
+
+condition_base <- all_kids2 %>%
+  bam(elog ~      Condition + 
+                  s(Time) + 
+                  s(Time, by=Condition) +
+                  s(Time, ChildStudyID, bs='fs', m=1) +
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs='fs', m=1), # we purposely don't include a smooth of Time by Child by Condition because we're comparing
+                  data=.,           # this nested model to one with GroupCondition below
+                  rho=r1_all,
+                  method="fREML",
+                  family="scat",
+                  discrete=TRUE, # must be TRUE to specify non-gaussian response in a scaled-t model; also means we have to use fREML (not REML and not ML)
+                  AR.start=start.event)
+
+all_kids2$GroupCondition <- interaction(all_kids2$Group,all_kids2$Condition)
+
+interact_model <- all_kids2 %>%
+  bam(elog ~      GroupCondition + 
+                  s(Time) +
+                  s(Time, by=GroupCondition) +
+                  s(Time, ChildStudyID, bs='fs', m=1) +
+                  s(Time, TargetWord, bs='fs', m=1) + 
+                  s(Time, num_visit, bs='fs', m=1),
+                  data=.,
+                  rho=r1_all,
+                  method="fREML", 
+                  family="scat",
+                  discrete=TRUE,
+                  AR.start=start.event)
+interact_model_summary <- summary(interact_model)
+
+compareML(condition_base,interact_model,print.output = T) # but we can't compare fREML models with different fixed effects
+AIC(condition_base,interact_model) # I am justified in continuing the modeling 
+
+# for visualization purposes (we want to be able to exclude random effects for visualization), we re-fit the model w/o discretizing;  
+interact_model_nd <- all_kids2 %>%
+  bam(elog ~      GroupCondition + 
+                  s(Time) +
+                  s(Time, by=GroupCondition) +
+                  s(Time, ChildStudyID, bs='fs', m=1) +
+                  s(Time, TargetWord, bs='fs', m=1) + 
+                  s(Time, num_visit, bs='fs', m=1),
+                  data=.,
+                  rho=r1_all,
+                  method="fREML", 
+                  family="scat",
+                  discrete=TRUE,
+                  AR.start=start.event)
+
+saveRDS(condition_base, "../novelWord_models/condition-base-model.Rdata")
+saveRDS(interact_model, "../novelWord_models/interact-model.Rdata")
+saveRDS(interact_model_nd, "../novelWord_models/interact-model-nd.Rdata")
+saveRDS(interact_model_summary, "../novelWord_models/interact-model-summary.Rdata")
+```
+
+```{r, create ordered factors}
+#Next, I'll evaluate if the difference between real and mispronounced words is significant for the two hearing groups **separately**. First, I have to create two ordered factors for a 2x2 relationship of word and condition. 
+
+# we have to create *two* reference levels: one for children with CIs and one for children with TH
+# Unlike a binary difference smooth, an ordered model doesn't lump intercepts and smooths together
+# and I'd like to be able to tease them apart in these models
+all_kids2$THReal0 <- as.ordered(all_kids2$Group=='NormalHearing' & all_kids2$Condition=='real')
+contrasts(all_kids2$THReal0) <- "contr.treatment" # contrast coding
+
+all_kids2$CIReal0 <- as.ordered(all_kids2$Group=='CochlearImplant' & all_kids2$Condition=='real')
+contrasts(all_kids2$CIReal0) <- "contr.treatment"
+```
+
+```{r, fit the 2x2 model, eval=FALSE, cache=T}
+groupcond_model <- all_kids2 %>%
+  bam(elog ~      Group + # ordered variable
+                  THReal0 + 
+                  CIReal0 + 
+                  s(Time) +
+                  s(Time, by=Group) +
+                  s(Time, by=THReal0) + 
+                  s(Time, by=CIReal0) +
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs='fs', m=1), # we purposely don't include a smooth of Time by Child by Group because that's not a hierarchical variable
+                  data=.,
+                  rho=r1_all,
+                  method="fREML",
+                  family="scat",
+                  discrete=TRUE,
+                  AR.start=start.event)
+
+groupcond_model_summary <- summary(groupcond_model)
+saveRDS(groupcond_model, "../novelWord_models/group-cond-model.Rdata")
+saveRDS(groupcond_model_summary, "../novelWord_models/group-cond-model-summary.Rdata")
+```
+
+```{r, model criticism for 2x2 model, eval=FALSE}
+gam.check(groupcond_model) # k' and k-index values looks fine
+# mgcViz:check.gamViz is actually better than gam.check because gam.check draws
+# randomly from data and can be hard to replicate; check.gamViz is also faster    
+groupcond_model_r <- all_kids2$Prop - plogis(fitted(groupcond_model)) # residuals look fine
+hist(groupcond_model_r,breaks = 20) # heavy, but normal
+```
+
+```{r, prepare binary difference}
+#Now that I know that there is a significant (non-linear) difference by condition for both groups, I want to know: is the effect of condition more pronounced in one group than the other? The ordered model above doesn't allow me to evaluate that. I have to fit a model with a binary difference smooth to evaluate that question. 
+
+# first we create a *single* binary difference smooth, just for word condition,
+# group is not included here 
+all_kids2$IsReal <- (all_kids2$Condition=='real')*1
+
+# then we additionally create a binary difference smooth of word*condition
+all_kids2$IsTHReal <- (all_kids2$Group=='NormalHearing' & all_kids2$Condition=='real')*1
+all_kids2$IsCIReal <- (all_kids2$Group=='CochlearImplant' & all_kids2$Condition=='real')*1
+```
+
+```{r, fit binary difference model, eval=FALSE,cache=T}
+diff_model <- all_kids2 %>%
+  bam(elog ~      Group + 
+                  s(Time) +
+                  s(Time, by=Group) +
+                  s(Time, by=IsReal) + # this represents real-novel difference for CI listeners
+                  s(Time, by=IsTHReal) + # this represents real-novel difference in TH vs. CI groups
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs='fs', m=1), # same here: Group isn't a hierarchical structure
+                  data=.,
+                  rho=r1_all,
+                  method="fREML",
+                  family="scat",
+                  discrete=TRUE,
+                  AR.start=start.event)
+
+diff_model_summary <- summary(diff_model)
+saveRDS(diff_model, "../novelWord_models//diff-model.Rdata")
+saveRDS(diff_model_summary, "../novelWord_models/diff-model-summary.Rdata")
+```
+
+```{r, criticism of difference model, eval=FALSE}
+gam.check(diff_model) # k' and k-index values all look good
+diff_model_r <- all_kids2$Prop - plogis(fitted(diff_model)) # residuals look fine
+hist(diff_model_r,breaks = 20) 
+```
+
+# Results
+## Analysis plan
+
+This supplememntary material reports a comparison between how children with cochlear implants (CIs) and TH (typical hearing) respond to real words and novel words in eyetracking paradigm. As in the results section of the paper, the comparison groups were matched for hearing age, gender, maternal education, and vocabulary size. The outcome variable is the proportion of looks to the familiar object versus the unfamiliar object, over time (300--1,800 ms after target word onset), which we modeled using Generalized Additive Mixed Models (GAMMs). See the Results section in the paper for a description of how to interpret GAMMs, how these GAMMs were fit, and all details on the computing environment that generated these results.  
+
+## Comparing children's responses to real words and novel words
+
+A series of GAMMs were fit comparing children with CIs and their hearing age- and vocabulary size-matched TH peers. **Condition** (Real Word vs. Novel Word) was contrast-coded to facilitate model interpretation and the 2x2 relationship of **Group** (Children with CIs vs. TH) and **Condition** was modeled using ordered factors. A model with parametric and smooth terms for **Group** and **Condition** improved upon a **Condition**-only model, suggesting that children with CIs and TH responded differently to real- versus novel words. 
+
+To statistically evaluate the source of the **Group** effect (i.e., stemming from overall vs. time-varying response to the stimuli), another model was fit that included parametric terms for **Group**, and the ordered factors of *Real Word* for children with CIs and *Real Word* for children with TH (Wieling, 2017). These parametric effects modeled the constant effect (the intercept) of the covariates upon the response variable. Smooth model terms included non-linear effects of **Time** and **Time** by **Group**. The latter allowed us to model the non-linear difference between the two different groups' responses to novel words. Finally, the model included difference smooths, which allowed us to separately model how each hearing group responded to real versus novel words, over time. See Table \@ref(tab:2-by-2-model-summary) for model summary.
+
+```{r, 2-by-2-model-summary}
+groupcond_model <- readRDS("../novelWord_models/group-cond-model.Rdata")
+groupcond_model_summary <- readRDS("../novelWord_models/group-cond-model-summary.Rdata")
+
+m <- gamtabs(groupcond_model,
+        caption = "Model summary predicting the difference between proportion of looks to the familiar object by word condition and hearing status.",
+        label="2-by-2-model-summary",
+        pnames = c("Intercept (Cochlear Implant: Novel word)", 
+                   "Typical Hearing", 
+                   "Typical Hearing: Real word", 
+                   "Cochlear Implant: Real word"), # the parametric terms
+        snames = c("s(Time)",
+                   "s(Time,Cochlear Implant)",
+                   "s(Time,Typical Hearing)",
+                   "s(Time,Typical Hearing; Real word)",
+                   "s(Time,Cochlear Implant; Real word)",
+                   "s(Time,Child)",
+                   "s(Time,Item)",
+                   "s(Time,Observation)"))
+
+
+```
+
+Parametric effects in the model summary show that there are, overall, significantly more looks to the familiar photo for *Real Word* trials than *Novel Word* trials, for both children with CIs and TH (CI logit Est.=`r round(groupcond_model_summary$p.coeff[4],2)`, p<.001, or proportion Est: `r round(plogis(groupcond_model_summary$p.coeff[4],2),2)`; TH logit Est.=`r round(groupcond_model_summary$p.coeff[3],2)`, p<.001, or proportion Est: `r round(plogis(groupcond_model_summary$p.coeff[3],2),2)`). we interpret the smooth terms by first considering effective degrees of freedom (EDF) and the significance test for each smooth. The EDF indicates how much wiggliness there is in a smooth where EDF=1 indicates a linear relationship and a larger value indicates more wiggliness in the smooth. Interpretation of the non-linear smooths shows that there are significant, non-linear differences in looks to the familiar object between real and novel words for children with CIs (smooth of **Time** by the ordered **Cochlear Implant; Real word**) and children with TH (smooth of **Time** by the ordered **Typical Hearing; Real Word**) (Figure \@ref(fig:2x2-novel-plot)). 
+
+```{r, 2x2-novel-plot, fig.cap="Observed data and GAMM predictions for proportion of looks to familiar object, by word condition and hearing status. Fixations on the y-axis are plotted as the empirical logit values (elog). Shaded ribbons represent 95% confidence intervals."}
+interact_model_nd <- readRDS("../novelWord_models/interact-model-nd.Rdata")
+
+interact_model <- get_gam_predictions(interact_model_nd, # get the dataframe with fit and s.e. of fit
+                      Time,
+                      split = list(GroupCondition = c("Group", "Condition")),
+                      exclude_random = TRUE) %>% 
+                      mutate(Group=recode(Group, "CochlearImplant"="Cochlear \n Implant", "NormalHearing" = "Typical \n Hearing"),
+                      Condition = recode(Condition, "nonsense"="Novel Word", "real"="Real word")) %>%
+                       ggplot(aes(Time,elog)) +
+                       geom_line(aes(color=Condition, linetype=Group),size=2) +
+                      scale_linetype_manual(values=c(1,3)) +
+                       geom_ribbon(aes(ymin=CI_lower, ymax=CI_upper, fill=Condition, group = .idx), alpha=0.3) +
+                        scale_color_manual(values=c('darkorchid4','darkgoldenrod2')) +
+                        scale_fill_manual(values=c('darkorchid4','darkgoldenrod2')) +
+                        xlab("Time since word onset (ms)")  +
+                         ylab("Fixation to target image (Elog)") +
+  #scale_y_continuous(breaks = seq(-1,2.5, by = 1), limits = c(-1,2.5)) +
+                        scale_x_continuous(breaks = seq(300,1800, by = 300)) +
+                        theme(axis.text = element_text(face="bold",size=9),
+                              axis.title = element_text(face="bold", size=12),
+                              legend.title = element_text(face="bold",size=12)) 
+
+obs_data <- all_kids2 %>%
+  mutate(GroupCondition=interaction(Group,Condition)) %>%
+ggplot(., aes(Time, Prop, color=Cond_Lab, fill=Cond_Lab, linetype=Group_Lab)) +
+  geom_smooth(aes(group=factor(GroupCondition)), stat="smooth", method="loess",alpha=.3, size=2) + # item level
+  scale_color_manual(values=c('darkorchid4','darkgoldenrod2')) +
+  scale_fill_manual(values=c('darkorchid4','darkgoldenrod2')) +
+  scale_linetype_manual(values=c(1,3)) +
+  xlab("Time since word onset (ms)") +
+  ylab("Fixation to target image (Proportion)") +
+  #scale_y_continuous(breaks = seq(-.5,2.5, by = .5)) +
+  scale_x_continuous(breaks = seq(300,1800, by = 300)) +
+  theme(axis.text.y = element_text(face="bold", size=9),
+        axis.text.x = element_text(face="bold", size=9),
+        axis.title.x = element_text(face="bold", size=12),
+        axis.title.y = element_text(face="bold", size=12))
+
+legend <- get_legend(
+  interact_model + guides(color = guide_legend(nrow = 1)) +
+    theme(legend.position = "bottom"))
+
+plots <- plot_grid(obs_data + theme(legend.position="none"),
+                   interact_model + theme(legend.position="none"),
+          labels=c("Observed", "Modeled"), 
+          nrow=1, 
+          align="vh",
+          hjust = -1,
+          label_x = 0) 
+
+plot_grid(plots, legend, 
+          ncol = 1, rel_heights = c(1, .1))
+
+#layer_scales(obs_data)$y$range$range
+#layer_scales(interact_model)$y$range$range
+
+```
+
+To evaluate differences in word learning (response to novel word items) by group, another GAMM was fit, with a binary difference smooth, which allowed us to evaluate the *difference* between smooths (Real- vs. Novel Words) for children with CIs and TH, over time. Model fit included parametric effects of **Group**, as well as smooths of **Time**, **Time** by **Group**, **Time** by **Condition**, and **Time** by the ordered variable of **Group** by **Condition** (to model the difference between real and novel words for each group). Model results are plotted in Figure \@ref(fig:ci-th-novel-facet-plot); see Table \@ref(tab:diff-model-summary) for the model summary. Overall, the model-estimated difference smooths show smaller differences between real and novel words for the children with CIs---and that these differences take slightly longer to manifest during online processing (left panel of Figure \@ref(fig:ci-th-novel-facet-plot)). Further inspection of the first model, as plotted in Figure \@ref(fig:real-novel-facet-plot), demonstrates why this is the case. The children with CIs and TH do not respond significantly differently to real words (which we already demonstrated in the primary analyses in the paper): once vocabulary size and hearing age are controlled, both groups of children respond similarly to real words. Instead, children with CIs look less to the novel item in response to novel words (right panel of Figure \@ref(fig:real-novel-facet-plot)), resulting in smaller difference smooths between real and novel words. 
+
+```{r, ci-th-novel-facet-plot, fig.cap="Difference smooths (GAMM predictions) by condition (real- vs. novel words) for children with CIs (L) and TH (R). Pink smooths represent the point when real and novel smooths differ (i.e., reliable effect of condition) for each group: there is a larger difference between real and novel word responses for children with TH than CIs. Shaded ribbons represent 95% confidence intervals."}
+ci_diff <- get_smooths_difference(interact_model_nd, 
+                       Time, 
+                       list(GroupCondition = c("CochlearImplant.real", "CochlearImplant.nonsense")),
+                       exclude_random = TRUE) %>%
+  ggplot(aes(Time, difference, group = group)) +
+  geom_hline(aes(yintercept=0), color='black',lty=2,size=1.5) +
+  geom_ribbon(aes(ymin=CI_lower, ymax=CI_upper, fill = sig_diff), alpha=.3) +
+  geom_line(aes(color=sig_diff), size=2) +
+  scale_x_continuous(breaks = c(300,600,900,1200,1500,1800))+
+  ylim(-.9,4.5)+
+  #scale_y_continuous(breaks = c(0,0.5,1,1,5,2))+
+  scale_color_manual(values=c('darkslateblue', 'deeppink3')) +
+  scale_fill_manual(values=c('darkblue', 'deeppink3')) +
+  ylab("Est. difference between \n real and novel words") +
+  xlab("Time since word onset (ms)") +
+  theme(legend.position = "none",
+        axis.text.y = element_text(face="bold", size=9),
+        axis.text.x = element_text(face="bold", size=9),
+        axis.title.y = element_text(face="bold", size=12),
+        axis.title.x = element_text(face="bold", size=12)) 
+
+th_diff <- get_smooths_difference(interact_model_nd, 
+                       Time, 
+                       list(GroupCondition = c("NormalHearing.real", "NormalHearing.nonsense")),
+                       exclude_random = T) %>%
+  ggplot(aes(Time, difference, group = group)) +
+  geom_hline(aes(yintercept=0), color='black',lty=2,size=1.5) +
+  geom_ribbon(aes(ymin=CI_lower, ymax=CI_upper, fill = sig_diff), alpha=.3) +
+  geom_line(aes(color=sig_diff), size=2) +
+  scale_x_continuous(breaks = c(300,600,900,1200,1500,1800))+
+  #scale_y_continuous(breaks = c(0,0.5,1,1.5,2))+
+  ylim(-.9,4.5)+
+  scale_color_manual(values=c('darkslateblue', 'deeppink3')) +
+  scale_fill_manual(values=c('darkslateblue', 'deeppink3')) +
+  theme(axis.title.y = element_blank()) +
+  xlab("Time since word onset (ms)")  +
+  theme(legend.position = "none",
+        axis.text.y = element_text(face="bold", size=9),
+        axis.text.x = element_text(face="bold", size=9),
+        axis.title.x = element_text(face="bold", size=12)) 
+
+plot_grid(ci_diff, th_diff,
+          labels=c("Cochlear Implant", "Typical Hearing"), 
+          nrow=1, align="h",
+          label_x = -.05) 
+
+```
+
+```{r, real-novel-facet-plot, fig.cap="Difference smooths (GAMM predictions) by hearing status for real and novel words. The pink smooth represents the point when the smooth for children with TH differs from children with CIs (i.e., reliable effect of group): there is an effect of group upon response to novel words (R plot: see also difference between purple lines in Figure 1), but not real words (L plot: see also difference between yellow lines in Figure 1). Shaded ribbons represent 95% confidence intervals."}
+
+real_diff <- get_smooths_difference(interact_model_nd, 
+                       Time, 
+                       list(GroupCondition = c("NormalHearing.real", "CochlearImplant.real")),
+                       exclude_random = TRUE) %>%
+  ggplot(aes(Time, difference, group=group)) +
+  geom_hline(aes(yintercept=0), color='black',lty=2,size=1.5) +
+  geom_ribbon(aes(ymin=CI_lower, ymax=CI_upper, fill = sig_diff), alpha=.3) +
+  geom_line(aes(color=sig_diff), size=2) +
+  scale_x_continuous(breaks = c(300,600,900,1200,1500,1800))+
+  ylim(-1.1,.8) +
+  #scale_y_continuous(breaks = c(0,0.5,1,1,5,2))+
+  scale_color_manual(values=c('darkslateblue', 'deeppink3')) +
+  scale_fill_manual(values=c('darkblue', 'deeppink3')) +
+  ylab("Est. Difference between children with TH and CIs") +
+  xlab("Time since word onset (ms)") +
+  theme(legend.position = "none",
+        axis.text.y = element_text(face="bold", size=9),
+        axis.text.x = element_text(face="bold", size=9),
+        axis.title.y = element_text(face="bold", size=12),
+        axis.title.x = element_text(face="bold", size=12)) 
+
+MP_diff <- get_smooths_difference(interact_model_nd, 
+                       Time, 
+                       list(GroupCondition = c("NormalHearing.nonsense", "CochlearImplant.nonsense")),
+                       exclude_random = TRUE) %>%
+  ggplot(aes(Time, difference, group=group)) +
+  geom_hline(aes(yintercept=0), color='black',lty=2,size=1.5) +
+  geom_ribbon(aes(ymin=CI_lower, ymax=CI_upper, fill = sig_diff), alpha=.3) +
+  geom_line(aes(color=sig_diff), size=2) +
+  scale_x_continuous(breaks = c(300,600,900,1200,1500,1800))+
+  ylim(-1.1,.8) +
+  #scale_y_continuous(breaks = c(0,0.5,1,1,5,2))+
+  scale_color_manual(values=c('darkslateblue', 'deeppink3')) +
+  scale_fill_manual(values=c('darkblue', 'deeppink3')) +
+  xlab("Time since word onset (ms)") +
+  theme(legend.position = "none",
+        axis.text.y = element_text(face="bold", size=9),
+        axis.text.x = element_text(face="bold", size=9),
+        axis.title.x = element_text(face="bold", size=12),
+        axis.title.y = element_blank()) 
+
+plot_grid(real_diff, MP_diff,
+          labels=c("Real words", "Novel words"), 
+          nrow=1, align="h",
+          label_x = -.05) 
+```
+
+## Explaining individual differences in response to novel words
+
+```{r, read in all 74 kids}
+prepre_looks <- read.csv("./data/model.csv.gz") %>% 
+  mutate(
+    Cond_Lab = Condition %>% 
+      factor(c("real", "MP", "nonsense"),
+             c("Real word", "Mispronunciation", "Nonword")))
+
+looks_a <- read.csv("./data/scores.csv") %>%
+  dplyr::select(ChildStudyID, Maternal_Education_Level, Female) %>%
+  merge(., prepre_looks, by="ChildStudyID") %>%
+  mutate(elog=log((Target+0.5)/(Distractor+0.5)), # convert prop to empirical log 
+         wts=1/(Target+0.5) + (1/(Distractor+0.5))) %>%
+  filter(Condition!='MP') %>% # only going to look at difference between novel and real 
+  filter(TargetWord!='dog' & TargetWord!='vef') # 7 kids with TH heard dog~tog instead of rice~wice
+
+# get hearing age for all of these kids w/ CIs
+hearing_age <- read.csv('./data/hearing_age.csv') %>% distinct(ChildStudyID, .keep_all = T)
+
+looks <- looks_a %>%
+  distinct(ChildStudyID, .keep_all = T) %>%
+  group_by(ResearchID) %>% 
+  mutate(num_visit = str_sub(Study, -1)) %>% # classify which visit it was (first, second, or third)
+  dplyr::select(num_visit, ChildStudyID, ResearchID) %>%
+  merge(., looks_a, by=c("ResearchID", "ChildStudyID")) %>% 
+  ungroup() %>%
+  mutate(elog=as.numeric(elog)) %>%
+  mutate(Time=as.numeric(Time),
+         Condition.ord=as.ordered(Condition),
+         Group.ord=as.ordered(Group),
+         ChildStudyID=as.factor(ChildStudyID),
+         num_visit=as.factor(num_visit),
+         WordGroup=as.factor(WordGroup),
+         ResearchID=as.factor(ResearchID)) %>% 
+  arrange(Time) %>%
+  merge(., hearing_age, by=c("ChildStudyID", "ResearchID"))
+
+ci_kids <- looks %>% filter(Group=='CochlearImplant')
+```
+
+```{r, contending with autocorrelation for CIs, fig.show='hide',cache=T, eval=T}
+contrasts(ci_kids$Condition.ord) <- "contr.treatment"
+ci_kids$start.event <- ci_kids$Time == 300 # mark the beginning of each speaker's trajectory; 
+                                            # where we start measuring at 300ms
+
+# make sure the data are properly ordered and classified
+ci_kids <- ci_kids %>%
+  arrange(ChildStudyID, Condition, WordGroup, Time) %>%
+  mutate(WordGroup=as.factor(WordGroup)) %>%
+  mutate(TargetWord=as.factor(TargetWord)) %>%
+  filter(EVT_GSV!='NA') # remove kids w/o vocab 
+
+
+# fit a model with the data properly ordered
+m1_ci <- bam(elog ~ Condition.ord +
+                  s(Time) +
+                  s(Time, by=Condition.ord) +
+                  te(Time,EVT_Age,by=Condition.ord) +
+                  s(Time, ChildStudyID, bs="fs", m=1) +
+                  s(Time, TargetWord, bs="fs", m=1) +
+                  s(Time, num_visit, bs="fs", m=1) +
+                  s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1),
+                  data=ci_kids, method="fREML") 
+
+m_acf_ci<- acf_resid(m1_ci) # plot the autocorrelation and take a look at correlation between timepoints - yikes!
+
+r1_ci <- start_value_rho(m1_ci) # first we calculate rho from the original model 
+```
+
+```{r, plotting autocorrelation for CIs, fig.show='hide', eval=T}
+m_AR1_ci <- bam(elog ~   Condition.ord +
+                         s(Time) +
+                         s(Time, by=Condition.ord) +
+                         te(Time,EVT_Age,by=Condition.ord) +
+                         s(Time, ChildStudyID, bs="fs", m=1) +
+                         s(Time, TargetWord, bs="fs", m=1) +
+                         s(Time, num_visit, bs="fs", m=1) +
+                         s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1),
+                         data=ci_kids, method="fREML",
+                         rho=r1_ci, AR.start=start.event)
+saveRDS(m_AR1_ci, "../all_child_models/ci/novelWord/ARI-ci.Rdata") 
+
+# we can plot the improvement here:
+m_acf_rmv_ci <- acf_resid(m_AR1_ci) # took care of the problem!
+```
+
+```{r, modeling real-novel differences for CIs, eval=T}
+m_AR1_ci <- readRDS("../all_child_models/ci/novelWord/ARI-ci.Rdata")
+
+vocab_model_CI <- ci_kids %>%
+  bam(elog ~      Condition.ord + 
+                  s(Time) +
+                  s(Time, by=Condition.ord) +
+                  s(EVT_Age) +
+                  te(Time,EVT_Age,by=Condition.ord) + 
+                  s(Time, ChildStudyID, bs='fs', m=1) + 
+                  s(Time, TargetWord, bs='fs', m=1) +
+                  s(Time, num_visit, bs="fs", m=1) +
+                  s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1), 
+                  data=.,
+                  rho=r1_ci,
+                  method="fREML",
+                  family="scat", 
+                  discrete=TRUE,
+                  nthreads=4,
+                  select=T, 
+                  AR.start=start.event)
+#gam.check(vocab_model_CI) # looks good
+vocab_model_CI_r <- ci_kids$Prop - plogis(fitted(vocab_model_CI))
+
+saveRDS(vocab_model_CI, "../all_child_models/ci/novelWord/vocab-model-ci.Rdata")
+```
+
+```{r, CI-raw-novel-plot, fig.cap="Raw response trajectories for proportion of looks to familiar object for children with CIs, by word condition and standardized vocabulary score. Children were divided into tertiles by score: smaller (median score=106), larger (129), and largest (143) vocabulary scores."}
+vocab_model_CI <- readRDS("../all_child_models/ci/novelWord/vocab-model-ci.Rdata")
+
+# create tertiles
+ci_kids3 <- ci_kids %>%
+  mutate(tertile=as.factor(ntile(EVT_GSV, 3))) %>%
+  distinct(ChildStudyID, .keep_all = T) %>%
+  dplyr::select(ChildStudyID,tertile,EVT_GSV)
+
+get_med <- ci_kids %>%
+  mutate(tertile=as.factor(ntile(EVT_GSV, 3))) %>%
+  group_by(tertile) %>%
+  summarize(med_evt=median(EVT_GSV)) # get the median gfta for each tertile
+
+ci_kids_plot <- ci_kids %>%
+  merge(., ci_kids3, by='ChildStudyID') %>%
+    filter(Prop!='NA') 
+ci_kids_plot$ConditionChild <- interaction(ci_kids_plot$Condition,ci_kids_plot$ChildStudyID)
+
+ci_kids_plot %>%
+  mutate(tertile=recode(tertile, "1"="Smaller","2"="Larger","3"="Largest"),
+         GroupCondition=interaction(Group,Condition)) %>%
+  ggplot(., aes(x=Time, y=Prop, color=Cond_Lab, fill=Cond_Lab, linetype=Group_Lab)) +
+  geom_line(aes(group=factor(ConditionChild)), stat="smooth", alpha=.3, method="loess",se=FALSE, size=.6) + 
+  geom_smooth(aes(group=factor(GroupCondition)), stat="smooth", method="loess",size=2) + # item level
+  scale_color_manual(values=c('darkgoldenrod2','darkorchid4')) +
+  scale_fill_manual(values=c('darkgoldenrod2','darkorchid4')) +
+  #scale_alpha_manual(values=c(.4,.6,1)) +
+  facet_wrap(~tertile) +
+  xlab("Time (ms)") + 
+  ylab("Fixation to familiar image (Proportion)") + 
+  ylim(0,1.1) +
+  scale_x_continuous(breaks = seq(300,1800, by = 300)) +
+  theme(axis.text = element_text(face="bold",size=8),
+        axis.title = element_text(face="bold", size=12),
+        plot.margin = unit(c(1,1,2,1), "lines"),
+        strip.text = element_text(size=12,face='bold'),
+        legend.position="none") + 
+      annotate(geom="text", x=580, y=1, size=4, label="Real Word",color='darkgoldenrod3') +
+      annotate(geom="text", x=900, y=0.05, size=4, label="Novel Word",color='darkorchid4')
+
+```
+
+```{r, diff-model-summary}
+diff_model <- readRDS("../novelWord_models/diff-model.Rdata")
+
+gamtabs(diff_model,
+        caption = "Predicting response difference between real and novel words, by hearing status.",
+        pnames = c("Intercept (Cochlear Implant: Novel Word)", "Typical Hearing"), # the parametric terms
+        snames = c("s(Time)",
+                   "s(Time,Cochlear Implant)",
+                   "s(Time,Typical Hearing)",
+                   "s(Time,Cochlear Implant Real - Cochlear Implant Novel Word)",
+                   "s(Time,Typical Hearing Difference - Cochlear Implant Difference)",
+                   "s(Time,Child)",
+                   "s(Time,Item)",
+                   "s(Time,Observation)")
+        )
+```
+
+```{r, CI-raw-all-plot, fig.cap="Raw response trajectories for proportion of looks to familiar object for children with CIs, by all three word conditions (correctly-pronounced real word, mispronounced word, novel word) and standardized vocabulary score. Children were divided into tertiles by score: smaller (median score=106), larger (129), and largest (143) vocabulary scores."}
+looks_a <- read.csv("./data/scores.csv") %>%
+  dplyr::select(ChildStudyID, Maternal_Education_Level, Female) %>%
+  merge(., prepre_looks, by="ChildStudyID") %>%
+  mutate(elog=log((Target+0.5)/(Distractor+0.5)), # convert prop to empirical log 
+         wts=1/(Target+0.5) + (1/(Distractor+0.5))) %>%
+  filter(TargetWord!='dog' & TargetWord!='vef' & TargetWord!='tog') # 7 kids with TH heard dog~tog instead of rice~wice
+
+ci_all <- looks_a %>%
+  distinct(ChildStudyID, .keep_all = T) %>%
+  group_by(ResearchID) %>% 
+  mutate(num_visit = str_sub(Study, -1)) %>% # classify which visit it was (first, second, or third)
+  dplyr::select(num_visit, ChildStudyID, ResearchID) %>%
+  merge(., looks_a, by=c("ResearchID", "ChildStudyID")) %>% 
+  ungroup() %>%
+  mutate(elog=as.numeric(elog)) %>%
+  mutate(Time=as.numeric(Time),
+         Condition.ord=as.ordered(Condition),
+         Group.ord=as.ordered(Group),
+         ChildStudyID=as.factor(ChildStudyID),
+         num_visit=as.factor(num_visit),
+         WordGroup=as.factor(WordGroup),
+         ResearchID=as.factor(ResearchID)) %>% 
+  arrange(Time) %>%
+  merge(., hearing_age, by=c("ChildStudyID", "ResearchID")) %>%
+  filter(Group=='CochlearImplant') %>%
+  arrange(ChildStudyID, Condition, WordGroup, Time) %>%
+  filter(EVT_GSV!='NA') 
+
+# create tertiles
+ci_all3 <- ci_all %>%
+  mutate(tertile=as.factor(ntile(EVT_GSV, 3))) %>%
+  distinct(ChildStudyID, .keep_all = T) %>%
+  dplyr::select(ChildStudyID,tertile,EVT_GSV)
+
+ci_all_plot <- ci_all %>%
+  merge(., ci_all3, by='ChildStudyID') %>%
+    filter(Prop!='NA') 
+ci_all_plot$ConditionChild <- interaction(ci_all_plot$Condition,ci_all_plot$ChildStudyID)
+
+ci_all_plot %>%
+  mutate(tertile=recode(tertile, "1"="Smaller","2"="Larger","3"="Largest"),
+         GroupCondition=interaction(Group,Condition)) %>%
+  ggplot(., aes(x=Time, y=Prop, color=Cond_Lab, fill=Cond_Lab, linetype=Group_Lab)) +
+  geom_line(aes(group=factor(ConditionChild)), stat="smooth", alpha=.3, method="loess",se=FALSE, size=.6) + 
+  geom_smooth(aes(group=factor(GroupCondition)), stat="smooth", method="loess",size=2) + # item level
+  scale_color_manual(values=c('darkgoldenrod2','turquoise4','darkorchid4')) +
+  scale_fill_manual(values=c('darkgoldenrod2','turquoise4','darkorchid4')) +
+  #scale_alpha_manual(values=c(.4,.6,1)) +
+  facet_wrap(~tertile) +
+  xlab("Time (ms)") + 
+  ylab("Fixation to familiar image (Proportion)") + 
+  ylim(0,1.1) +
+  scale_x_continuous(breaks = seq(300,1800, by = 300)) +
+  theme(axis.text = element_text(face="bold",size=8),
+        axis.title = element_text(face="bold", size=12),
+        plot.margin = unit(c(1,1,2,1), "lines"),
+        strip.text = element_text(size=12,face='bold'),
+        legend.position="none") + 
+      annotate(geom="text", x=540, y=.8, size=4, label="Real Word",color='darkgoldenrod3') +
+      annotate(geom="text", x=1200, y=0.05, size=4, label="Novel Word",color='darkorchid4') +
+      annotate(geom="text", x=800, y=0.2, size=4, label="Mispronunciation",color='turquoise4')
+
+```
+
