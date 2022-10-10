@@ -22,7 +22,7 @@ prepre_looks <- read.csv("./data/model.csv.gz") %>%
   mutate(
     Cond_Lab = Condition %>% 
       factor(c("real", "MP", "nonsense"),
-             c("Real word", "Mispronunciation", "Nonword")))
+             c("Real word", "Mispronunciation", "Nonword"))) 
 
 looks <- read.csv("./data/scores.csv") %>%
   dplyr::select(ChildStudyID, Maternal_Education_Level, Female,AAE,LateTalker) %>%
@@ -30,7 +30,7 @@ looks <- read.csv("./data/scores.csv") %>%
 
 for_matching <- looks %>% 
   mutate(CImplant=recode(Group, 'CochlearImplant'='1', 'NormalHearing'='0')) %>%
-  dplyr::select(ChildStudyID, ResearchID, Female, CImplant, Maternal_Education_Level, EVT_Age) 
+  dplyr::select(ChildStudyID, ResearchID, Female, CImplant, Maternal_Education_Level, EVT_Age,EVT_GSV) 
 
 set.seed(1234)
 ```
@@ -86,7 +86,7 @@ ha_output_final <- ha_output %>%
   gather("hearing_status", "row_number", CI, NH) %>%
   merge(., for_ha_matching, by='row_number') %>%
   distinct(., ChildStudyID, .keep_all = T) %>%
-  merge(., looks, by=c('ChildStudyID','EVT_Age','Maternal_Education_Level','Female','ResearchID')) # remerge with eyetracking data; but now this only includes matches
+  merge(., looks, by=c('ChildStudyID','EVT_Age','Maternal_Education_Level','Female','ResearchID',"EVT_GSV")) # remerge with eyetracking data; but now this only includes matches
 
 # sanity check; successfully matched (with and wo repeated measures)
 ha_to_check <- ha_output_final %>%
@@ -101,18 +101,18 @@ ha_gender <- ha_output_final %>%
   distinct(ChildStudyID, .keep_all = T) %>%
   summarize(gender_n = NROW(Female))
 
-# there should be n=34 (n=17 NH & n=17 CI)
+# there should be n=38 (n=19 NH & n=19 CI)
 ha_to_check2 <- ha_output_final %>%
   distinct_at(., vars(hearing_status, ChildStudyID)) %>%
   count(hearing_status)
 
-# export these matched kids
+# sanity check
+
+# export these matched kids w/ unclean trials removed
 ha_output_final %>%
  mutate(elog=log((Target+0.5)/(Distractor+0.5)), # convert prop to empirical log 
         elog_wts=(1/(Target+0.5)) + (1/(Distractor+0.5))) %>%
  write.csv(., './data/ha_matched_kids.csv')
-
-
 ```
 
 

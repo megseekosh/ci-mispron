@@ -18,7 +18,8 @@ library('tidymv') # v. 3.3.0
 library('cowplot') # v. 1.1.1
 library('kableExtra') # v. 1.2.1
 library('gridExtra') # v. 2.3 
-
+library('beepr') # to tell when models are finished
+library('parallel') # to tell # of cores present
 
 knitr::opts_chunk$set(message=FALSE, 
                       warning=FALSE,
@@ -72,10 +73,13 @@ trials <- all_kids2 %>%
   count(Group)
 
 # AAE & Late Talker: no kids were late talkers or received in AAE
-demo_data <- read.csv("./data/scores.csv") %>%
-  dplyr::select(ResearchID,AAE,LateTalker) %>%
-  merge(., all_kids2, by="ResearchID") %>%
-  distinct(ResearchID, .keep_all = T)
+num_aae <- all_kids2 %>% 
+  distinct(ResearchID, .keep_all = T) %>% 
+  count(AAE)
+
+num_late <- all_kids2 %>%
+  distinct(ResearchID, .keep_all = T) %>%
+  count(LateTalker)
 
 # info for tables  
 stat_sum_ha <- all_kids2 %>% 
@@ -131,7 +135,7 @@ stat_gender %>%
   kableExtra::kable_styling(latex_options = "hold_position")
 ```
 
-```{r, contending with autocorrelation, fig.show='hide',cache=T}
+```{r, contending with autocorrelation, fig.show='hide',cache=T, eval=F}
 #I first have to factor out autocorrelation between looks. 
 # fit a model with the data properly ordered
 m1_all <- bam(elog ~ Condition.ord +
@@ -216,6 +220,7 @@ interact_model_nd <- all_kids2 %>%
                   #discrete=TRUE,
                   AR.start=start.event)
 
+
 saveRDS(condition_base, "../hearingage_matched_models/condition-base-model.Rdata")
 saveRDS(interact_model, "../hearingage_matched_models/interact-model.Rdata")
 saveRDS(interact_model_nd, "../hearingage_matched_models/interact-model-nd.Rdata")
@@ -261,6 +266,8 @@ saveRDS(groupcond_model_summary, "../hearingage_matched_models/group-cond-model-
 
 ```{r, model criticism for 2x2 model, eval=FALSE}
 gam.check(groupcond_model) # k' and k-index values looks fine
+# mgcViz:check.gamViz is actually better than gam.check because gam.check draws
+# randomly from data and can be hard to replicate; check.gamViz is also faster    
 groupcond_model_r <- all_kids2$Prop - plogis(fitted(groupcond_model)) # residuals look fine
 hist(groupcond_model_r,breaks = 20) # heavy, but normal
 ```
@@ -333,8 +340,6 @@ m <- gamtabs(groupcond_model,
         snames = c("s(Time)","s(Time,Cochlear Implant)","s(Time,Typical Hearing)",
                    "s(Time,Typical Hearing; Correct)","s(Time,Cochlear Implant; Correct)",
                    "s(Time,Child)","s(Time,Item)","s(Time,Observation)"))
-
-
 ```
 
 In the first part of the results, we ask: are both children with CIs and their TH matches sensitive to mispronunciations? Parametric effects in the model summary show that there are, overall, significantly more looks to the familiar photo for *Correct Pronunciation* trials than *Mispronunciation* trials, for both children with CIs and TH (CI logit Est.=`r round(groupcond_model_summary$p.coeff[4],2)`, p<.001, or proportion Est: `r plogis(groupcond_model_summary$p.coeff[4],2)`; TH logit Est.=`r round(groupcond_model_summary$p.coeff[3],2)`, p<.001, or proportion Est: `r plogis(groupcond_model_summary$p.coeff[3],2)`). we interpret the smooth terms by first considering effective degrees of freedom (EDF) and the significance test for each smooth. The EDF indicates how much wiggliness there is in a smooth where EDF=1 indicates a linear relationship and a larger value indicates more wiggliness in the smooth. Interpretation of the non-linear smooths shows that there are significant, non-linear differences in looks to the familiar object between correct- and mis-pronunciations for children with CIs (smooth of **Time** by the ordered **Cochlear Implant; Correct**) and children with TH (smooth of **Time** by the ordered **Typical Hearing; Correct**) (Figure \@ref(fig:2x2-plot)). Thus, both children with CIs and TH are sensitive to mispronunciations.
@@ -342,23 +347,23 @@ In the first part of the results, we ask: are both children with CIs and their T
 ```{r, 2x2-plot, fig.cap="Observed data and GAMM predictions for proportion of looks to familiar object, by word condition and hearing status. Fixations on the y-axis are plotted as the empirical logit values (elog). Shaded ribbons represent 95% confidence intervals."}
 interact_model_nd <- readRDS("../hearingage_matched_models/interact-model-nd.Rdata")
 
-interact_model <- get_gam_predictions(interact_model_nd, # get the dataframe with fit and s.e. of fit
+interact_model <-  get_gam_predictions(interact_model_nd, # get the dataframe with fit and s.e. of fit
                       Time,
                       split = list(GroupCondition = c("Group", "Condition")),
                       exclude_random = TRUE) %>% 
-                      mutate(Group=recode(Group, "CochlearImplant"="Cochlear Implant", "NormalHearing" = "Typical Hearing"),
-                      Condition = recode(Condition, "MP"="Mispronunciation", "real"="Correct pronunciation")) %>%
+                      mutate(Group=recode(Group, "CochlearImplant"="Cochlear \n Implant", "NormalHearing" = "Typical \n Hearing"),
+                      Condition = recode(Condition, "MP"="Mispronunciation", "real"="Correct \n pronunciation")) %>%
                        ggplot(aes(Time,elog)) +
                        geom_line(aes(color=Condition, linetype=Group),size=2) +
-                      scale_linetype_manual(values=c(1,3)) +
+                       scale_linetype_manual(values=c(1,3)) +
                        geom_ribbon(aes(ymin=CI_lower, ymax=CI_upper, fill=Condition, group = .idx), alpha=0.3) +
-                        scale_color_manual(values=c('darkgoldenrod2','turquoise4')) +
-                        scale_fill_manual(values=c('darkgoldenrod2','turquoise4')) +
-                        xlab("Time since word onset (ms)")  +
-                         ylab("Fixation to target image (Elog)") +
-  scale_y_continuous(breaks = seq(-1,2.5, by = 1), limits = c(-1,2.5)) +
-                        scale_x_continuous(breaks = seq(300,1800, by = 300)) +
-                        theme(axis.text = element_text(face="bold",size=9),
+                       scale_color_manual(values=c('darkgoldenrod2','turquoise4')) +
+                       scale_fill_manual(values=c('darkgoldenrod2','turquoise4')) +
+                       xlab("Time since word onset (ms)")  +
+                       ylab("Fixation to target image (Elog)") +
+                       scale_y_continuous(breaks = seq(-1,2.5, by = 1), limits = c(-1,2.5)) +
+                       scale_x_continuous(breaks = seq(300,1800, by = 300)) +
+                       theme(axis.text = element_text(face="bold",size=9),
                               axis.title = element_text(face="bold", size=12),
                               legend.title = element_text(face="bold",size=12)) 
 
@@ -438,7 +443,7 @@ th_diff <- get_smooths_difference(interact_model_nd,
   theme(axis.title.y = element_blank()) +
   xlab("Time since word onset (ms)")  +
   theme(legend.position = "none",
-        axis.text.y = element_text(face="bold", size=12),
+        axis.text.y = element_text(face="bold", size=9),
         axis.text.x = element_text(face="bold", size=9),
         axis.title.x = element_text(face="bold", size=12)) 
 
@@ -449,7 +454,7 @@ plot_grid(ci_diff, th_diff,
 
 ```
 
-```{r, real-mp-facet-plot, fig.cap="Difference smooths (GAMM predictions) by hearing status for correct pronunciations and mispronunciations. The pink smooth represents the point when the smooth for children with TH differs from children with CIs (i.e., reliable effect of group): there is an effect of group upon mispronunciations (L plot: see also difference between yellow lines in Figure 1), but not correct pronunciations  (R plot: see also difference between turquoise lines in Figure 1). Shaded ribbons represent 95% confidence intervals."}
+```{r, real-mp-facet-plot, fig.cap="Difference smooths (GAMM predictions) by hearing status for correct pronunciations and mispronunciations. The pink smooth represents the point when the smooth for children with TH differs from children with CIs (i.e., reliable effect of group): there is an effect of group upon mispronunciations (L plot: see also difference between turquoise lines in Figure 2), but not correct pronunciations  (R plot: see also difference between yellow lines in Figure 2). Shaded ribbons represent 95% confidence intervals."}
 real_diff <- get_smooths_difference(interact_model_nd, 
                        Time, 
                        list(GroupCondition = c("NormalHearing.real", "CochlearImplant.real")),
@@ -486,7 +491,7 @@ MP_diff <- get_smooths_difference(interact_model_nd,
   scale_fill_manual(values=c('darkblue', 'deeppink3')) +
   xlab("Time since word onset (ms)") +
   theme(legend.position = "none",
-        axis.text.y = element_text(face="bold", size=12),
+        axis.text.y = element_text(face="bold", size=9),
         axis.text.x = element_text(face="bold", size=9),
         axis.title.x = element_text(face="bold", size=12),
         axis.title.y = element_blank()) 
@@ -534,6 +539,21 @@ looks <- looks_a %>%
          ResearchID=as.factor(ResearchID)) %>% 
   arrange(Time) %>%
   merge(., hearing_age, by=c("ChildStudyID", "ResearchID"))
+```
+
+```{r, how many unique children w CIs completed both assessments?}
+looks %>% 
+  distinct(ResearchID, .keep_all = T) %>%
+  filter(GFTA_Standard!='NA' & EVT_GSV!='NA') %>% 
+  filter(Group=='CochlearImplant') %>%
+  NROW()
+```
+
+```{r, how many trials for the 33 ci and 24 th who completed both assessments?}
+looks %>% 
+  filter(GFTA_Standard!='NA' & EVT_GSV!='NA') %>% 
+  distinct_at(., vars(ChildStudyID,TargetWord), .keep_all = T) %>%
+  count(Group)
 ```
 
 ```{r, stan-meas-table}
@@ -616,7 +636,7 @@ looks %>%
 ci_kids <- looks %>% filter(Group=='CochlearImplant')
 ```
 
-```{r, contending with autocorrelation for CIs, fig.show='hide',cache=T}
+```{r, contending with autocorrelation for CIs, fig.show='hide',cache=T, eval=T}
 contrasts(ci_kids$Condition.ord) <- "contr.treatment"
 ci_kids$start.event <- ci_kids$Time == 300 # mark the beginning of each speaker's trajectory; 
                                             # where we start measuring at 300ms
@@ -645,7 +665,7 @@ m_acf_ci<- acf_resid(m1_ci) # plot the autocorrelation and take a look at correl
 r1_ci <- start_value_rho(m1_ci) # first we calculate rho from the original model 
 ```
 
-```{r, plotting autocorrelation for CIs, fig.show='hide', eval=FALSE}
+```{r, plotting autocorrelation for CIs, fig.show='hide', eval=T}
 m_AR1_ci <- bam(elog ~   Condition.ord +
                          s(Time) +
                          s(Time, by=Condition.ord) +
@@ -662,7 +682,7 @@ saveRDS(m_AR1_ci, "../all_child_models/ci/ARI-ci.Rdata")
 m_acf_rmv_ci <- acf_resid(m_AR1_ci) # took care of the problem!
 ```
 
-```{r, modeling real-MP differences for CIs, eval=FALSE}
+```{r, modeling real-MP differences for CIs, eval=T}
 m_AR1_ci <- readRDS("../all_child_models/ci/ARI-ci.Rdata")
 
 # 36/37 kids have evt scores
@@ -754,9 +774,9 @@ get_smooths_difference(gfta_model_CI,
   ylab("Est. difference between \n correct and mispronunciations") +
   xlab("Time since word onset (ms)") +
   #ggtitle("Difference smooths between correct- and \n mis-pronunciations for children with CIs, \n by standardized articulatory score") +
-  annotate(geom="text", x=1720, y=1.66, size=5, label="Best") +
-  annotate(geom="text", x=1720, y=1.2, size=5, label="Better", color='gray35') +
-  annotate(geom="text", x=1720, y=.97, size=5, label="Poorer", color='gray50') +
+  annotate(geom="text", x=1720, y=1.7, size=5, label="Best") +
+  annotate(geom="text", x=1720, y=1.27, size=5, label="Better", color='gray35') +
+  annotate(geom="text", x=1720, y=1.03, size=5, label="Poorer", color='gray50') +
   theme(legend.position = "none",
         axis.text.x = element_text(face="bold", size=9),
         axis.title.x=element_text(face="bold", size=12),
@@ -785,7 +805,7 @@ ci_kids_plot %>%
   ylab("Fixation to target image (Proportion)") + 
   ylim(0,1.1) +
   scale_x_continuous(breaks = seq(300,1800, by = 300)) +
-  theme(axis.text = element_text(face="bold",size=9),
+  theme(axis.text = element_text(face="bold",size=8),
         axis.title = element_text(face="bold", size=12),
         plot.margin = unit(c(1,1,2,1), "lines"),
         strip.text = element_text(size=12,face='bold'),
