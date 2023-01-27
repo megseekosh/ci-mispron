@@ -2,7 +2,7 @@
 
 Code to replicate results from:
 
-Cychosz, M., Mahr, T., Munson, B., Newman, R., & Edwards, J. R. (*under review*). Preschoolers rely on rich speech representations to process variable speech. [10.31234/osf.io/cj8qp](https://psyarxiv.com/cj8qp/)
+Cychosz, M., Mahr, T., Munson, B., Newman, R., & Edwards, J. R. (*accepted*). Preschoolers rely on rich speech representations to process variable speech. *Child Development*. [10.31234/osf.io/cj8qp](https://psyarxiv.com/cj8qp/)
 
 
 # datasets
