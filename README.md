@@ -2,7 +2,7 @@
 
 Code to replicate results from:
 
-Cychosz, M., Mahr, T., Munson, B., Newman, R., & Edwards, J. R. (*accepted*). Preschoolers rely on rich speech representations to process variable speech. *Child Development*. [10.31234/osf.io/cj8qp](https://psyarxiv.com/cj8qp/)
+Cychosz, M., Mahr, T., Munson, B., Newman, R., & Edwards, J. R. (2023). Preschoolers rely on rich speech representations to process variable speech. *Child Development 94,*(4), e197-e214. [10.31234/osf.io/cj8qp](https://psyarxiv.com/cj8qp/)
 
 
 # datasets
@@ -27,12 +27,10 @@ Cychosz, M., Mahr, T., Munson, B., Newman, R., & Edwards, J. R. (*accepted*). Pr
 
 * `2a_modeling_novelWords.Rmd` - replicate supplementary materials II, comparing responses to real versus novel words
 
-# manuscript
-
-`manuscript.pdf`
-
 # extra scripts
 
 * `99_elogit_demo.Rmd` - verify that we don't need to weight observations within the GAMMs
 
 * `create_dark_tables.R` - a function to render darker in-line Kable tables when using a dark RStudio theme
+
+Note: the looking proportions in Results (0.22 for the CI group, 0.33 for the TH group) came from a plogis() call where a rounding digit was passed as the location parameter, computing plogis(est − 2) instead of plogis(est). The correct back-transformed values are 0.68 and 0.79. No model estimate, table, or figure is affected.
