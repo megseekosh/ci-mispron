@@ -24,9 +24,7 @@ Cychosz, M., Mahr, T., Munson, B., Newman, R., & Edwards, J. R. (2023). Preschoo
 * `1_audiological_information.R` - organize etiological information for children with cochlear implants
 
 * `2_modeling.Rmd` - replicate the results section of the manuscript
-
-* `2a_modeling_novelWords.Rmd` - replicate supplementary materials II, comparing responses to real versus novel words
-
+  
 # extra scripts
 
 * `99_elogit_demo.Rmd` - verify that we don't need to weight observations within the GAMMs
