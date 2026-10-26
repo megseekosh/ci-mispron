@@ -31,6 +31,9 @@ Cychosz, M., Mahr, T., Munson, B., Newman, R., & Edwards, J. R. (2023). Preschoo
 
 * `create_dark_tables.R` - a function to render darker in-line Kable tables when using a dark RStudio theme
 
-Note: the looking proportions in Results (0.22 for the CI group, 0.33 for the TH group) came from a plogis() call where a rounding digit was passed as the location parameter, computing plogis(est − 2) instead of plogis(est). The correct back-transformed values are 0.68 and 0.79. No model estimate, table, or figure is affected.
+Rmds are not meant to be fully knittable (fitted GAMM objects aren't shared for space reasons). Instead, models' fitting code is present in the eval=FALSE chunks and refitting reproduces all conclusions (i.e. you can run this yourself it will just take a while). 
+
+Note: the looking proportions in Results (0.22 for the CI group, 0.33 for the TH group) came from a plogis() call where a rounding digit was passed as the location parameter, computing plogis(est − 2) instead of plogis(est). The correct back-transformed values are 0.68 and 0.79. No model estimate, table, or figure is affected. 
 
 Note (Oct 2026): models in the paper were fit with mgcv 1.8-38 (R 4.0.2). Newer mgcv software versions reproduce all coefficients and conclusions, but the estimated smooths for two terms (the near-zero s(Time) in Table 4 and the binary-model difference smooth, p = .004 originally vs p = .04 on current versions) differ numerically; exact replication requires the original mgcv 1.8-38 (R 4.0.2).
+
