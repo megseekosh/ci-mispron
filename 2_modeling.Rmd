@@ -14,11 +14,10 @@ library('tidyverse') # v. 1.3.0
 library('itsadug') # v. 2.4
 library('mgcv') # v. 1.8-38
 library('ggplot2') # v. 3.3.5
-library('tidymv') # v. 3.3.0 
+library('tidymv') # v. 3.3.0 ; NOTE: tidymv has since been archived on CRAN; install from the CRAN source archive or port to tidygam
 library('cowplot') # v. 1.1.1
 library('kableExtra') # v. 1.2.1
 library('gridExtra') # v. 2.3 
-library('beepr') # to tell when models are finished
 library('parallel') # to tell # of cores present
 
 knitr::opts_chunk$set(message=FALSE, 
@@ -330,6 +329,8 @@ To evaluate how access to fine, phonetic detail may affect mispronunciation sens
 To statistically evaluate the source of the **Group** effect (i.e., stemming from overall vs. time-varying response to the stimuli), another model was fit that included parametric terms for **Group**, and the ordered factors of *Correct Pronunciation* for children with CIs and *Correct Pronunciation* for children with TH (Wieling, 2017). These parametric effects modeled the constant effect (the intercept) of the covariates upon the response variable. Smooth model terms included non-linear effects of **Time** and **Time** by **Group**. The latter allowed us to model the non-linear difference between the two different groups' responses to mispronunciations. Finally, the model included difference smooths, which allowed us to separately model how each hearing group responded to correct- versus mis-pronunciations, over time. See Table \@ref(tab:2-by-2-model-summary) for model summary.
 
 ```{r, 2-by-2-model-summary}
+# The fitted-model .Rdata objects are not distributed with this repository;
+# the eval=FALSE chunks above contain the full fitting code that regenerates them.
 groupcond_model <- readRDS("../hearingage_matched_models/group-cond-model.Rdata")
 groupcond_model_summary <- readRDS("../hearingage_matched_models/group-cond-model-summary.Rdata")
 
@@ -342,7 +343,7 @@ m <- gamtabs(groupcond_model,
                    "s(Time,Child)","s(Time,Item)","s(Time,Observation)"))
 ```
 
-In the first part of the results, we ask: are both children with CIs and their TH matches sensitive to mispronunciations? Parametric effects in the model summary show that there are, overall, significantly more looks to the familiar photo for *Correct Pronunciation* trials than *Mispronunciation* trials, for both children with CIs and TH (CI logit Est.=`r round(groupcond_model_summary$p.coeff[4],2)`, p<.001, or proportion Est: `r plogis(groupcond_model_summary$p.coeff[4],2)`; TH logit Est.=`r round(groupcond_model_summary$p.coeff[3],2)`, p<.001, or proportion Est: `r plogis(groupcond_model_summary$p.coeff[3],2)`). we interpret the smooth terms by first considering effective degrees of freedom (EDF) and the significance test for each smooth. The EDF indicates how much wiggliness there is in a smooth where EDF=1 indicates a linear relationship and a larger value indicates more wiggliness in the smooth. Interpretation of the non-linear smooths shows that there are significant, non-linear differences in looks to the familiar object between correct- and mis-pronunciations for children with CIs (smooth of **Time** by the ordered **Cochlear Implant; Correct**) and children with TH (smooth of **Time** by the ordered **Typical Hearing; Correct**) (Figure \@ref(fig:2x2-plot)). Thus, both children with CIs and TH are sensitive to mispronunciations.
+In the first part of the results, we ask: are both children with CIs and their TH matches sensitive to mispronunciations? Parametric effects in the model summary show that there are, overall, significantly more looks to the familiar photo for *Correct Pronunciation* trials than *Mispronunciation* trials, for both children with CIs and TH (CI logit Est.=`r round(groupcond_model_summary$p.coeff[4],2)`, p=.001, or proportion Est: `r round(plogis(groupcond_model_summary$p.coeff[4]),2)`; TH logit Est.=`r round(groupcond_model_summary$p.coeff[3],2)`, p<.001, or proportion Est: `r round(plogis(groupcond_model_summary$p.coeff[3]),2)`). we interpret the smooth terms by first considering effective degrees of freedom (EDF) and the significance test for each smooth. The EDF indicates how much wiggliness there is in a smooth where EDF=1 indicates a linear relationship and a larger value indicates more wiggliness in the smooth. Interpretation of the non-linear smooths shows that there are significant, non-linear differences in looks to the familiar object between correct- and mis-pronunciations for children with CIs (smooth of **Time** by the ordered **Cochlear Implant; Correct**) and children with TH (smooth of **Time** by the ordered **Typical Hearing; Correct**) (Figure \@ref(fig:2x2-plot)). Thus, both children with CIs and TH are sensitive to mispronunciations.
 
 ```{r, 2x2-plot, fig.cap="Observed data and GAMM predictions for proportion of looks to familiar object, by word condition and hearing status. Fixations on the y-axis are plotted as the empirical logit values (elog). Shaded ribbons represent 95% confidence intervals."}
 interact_model_nd <- readRDS("../hearingage_matched_models/interact-model-nd.Rdata")
@@ -542,9 +543,13 @@ looks <- looks_a %>%
 ```
 
 ```{r, how many unique children w CIs completed both assessments?}
+# filter() must precede distinct(): distinct(ResearchID) keeps each child's first
+# row in the current sort order, so filtering afterwards drops children whose
+# first-sorted observation lacks a score (this produced the value 21 published in
+# Figure 1; the count below is 24)
 looks %>% 
+  filter(GFTA_Standard!='NA' & EVT_GSV!='NA') %>%
   distinct(ResearchID, .keep_all = T) %>%
-  filter(GFTA_Standard!='NA' & EVT_GSV!='NA') %>% 
   filter(Group=='CochlearImplant') %>%
   NROW()
 ```
@@ -676,6 +681,7 @@ m_AR1_ci <- bam(elog ~   Condition.ord +
                          s(Time, ChildStudyID, by=Condition.ord, bs='fs', m=1),
                          data=ci_kids, method="fREML",
                          rho=r1_ci, AR.start=start.event)
+dir.create("../all_child_models/ci", recursive=TRUE, showWarnings=FALSE)
 saveRDS(m_AR1_ci, "../all_child_models/ci/ARI-ci.Rdata") 
 
 # we can plot the improvement here:
@@ -714,6 +720,7 @@ gfta_model_CI_r <- ci_kids$Prop - plogis(fitted(gfta_model_CI))
 hist(gfta_model_CI_r,n=20)
 
 
+dir.create("../all_child_models/ci", recursive=TRUE, showWarnings=FALSE)
 saveRDS(gfta_model_CI, "../all_child_models/ci/gfta-model-ci.Rdata")
 ```
 

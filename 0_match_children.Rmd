@@ -109,10 +109,15 @@ ha_to_check2 <- ha_output_final %>%
 # sanity check
 
 # export these matched kids w/ unclean trials removed
+# OVERWRITE GUARD: the analysis input data/ha_matched_kids.csv was exported from an
+# earlier version of data/model.csv.gz; re-running this notebook on the current
+# model.csv.gz selects the same 38 children but yields slightly different trial
+# cells/values. To avoid silently replacing the shipped analysis input, this now
+# writes to a separate file.
 ha_output_final %>%
  mutate(elog=log((Target+0.5)/(Distractor+0.5)), # convert prop to empirical log 
         elog_wts=(1/(Target+0.5)) + (1/(Distractor+0.5))) %>%
- write.csv(., './data/ha_matched_kids.csv')
+ write.csv(., './data/ha_matched_kids_regenerated.csv')
 ```
 
 
