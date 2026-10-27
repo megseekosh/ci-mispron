@@ -9,6 +9,8 @@ Cychosz, M., Mahr, T., Munson, B., Newman, R., & Edwards, J. R. (2023). Preschoo
 
 * `model.csv.gz` - contains props of looks to target for all children
 
+* `ha_matched_kids.csv` - roster that results reproduce from
+
 * `scores.csv` - contains scores for standardized assessments 
 
 * `audio_info.csv` - contains audiological information for children with cochlear implants
