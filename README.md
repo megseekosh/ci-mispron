@@ -19,7 +19,7 @@ Cychosz, M., Mahr, T., Munson, B., Newman, R., & Edwards, J. R. (2023). Preschoo
 
 # modeling and scripts to replicate results
 
-* `0_match_children.Rmd` - match children with cochlear implants to children with typical hearing by vocabulary size and hearing age
+* `0_match_children.Rmd` - match children with cochlear implants to children with typical hearing by hearing age, gender, and maternal education (vocabulary did not differ)
 
 * `1_audiological_information.R` - organize etiological information for children with cochlear implants
 
